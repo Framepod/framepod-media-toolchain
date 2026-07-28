@@ -2,4 +2,7 @@ ffmpeg/win-linux/Dockerfile
 ffmpeg/win-linux/.cache/
 ffmpeg/win-linux/ffbuild/
 ffmpeg/win-linux/artifacts/
+ffmpeg/macos/.cache/
+ffmpeg/macos/workspace/
+ffmpeg/macos/artifacts/
 .DS_Store

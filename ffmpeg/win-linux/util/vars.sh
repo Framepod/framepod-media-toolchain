@@ -33,7 +33,7 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-REPO="${GITHUB_REPOSITORY:-Framecast/framepod-media-toolchain}"
+REPO="${GITHUB_REPOSITORY:-Framepod/framepod-media-toolchain}"
 REPO="${REPO,,}"
 REGISTRY="${REGISTRY_OVERRIDE:-ghcr.io}"
 BASE_IMAGE="${REGISTRY}/${REPO}/base:latest"

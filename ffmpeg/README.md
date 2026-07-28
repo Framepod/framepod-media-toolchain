@@ -6,7 +6,7 @@ Self-contained FFmpeg binaries, consumed by the Tauri app as a sidecar (desktop)
 | Directory | Targets | Base |
 |---|---|---|
 | `win-linux/` | win64, winarm64, linux64, linuxarm64 | [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) @ `8c736b2`, trimmed |
-| `macos/` | macos-arm64 | not started — plan: fork of [markus-perl/ffmpeg-build-script](https://github.com/markus-perl/ffmpeg-build-script) |
+| `macos/` | macos-arm64 | native build, recipes adapted from [markus-perl/ffmpeg-build-script](https://github.com/markus-perl/ffmpeg-build-script) |
 | `android/` | arm64-v8a, armeabi-v7a, x86_64 | not started — NDK, `ffmpeg-kit` scripts as reference |
 
 ## win-linux
@@ -66,6 +66,43 @@ Dry-run the graph without Docker:
 ```
 ./generate.sh linux64 gpl && grep '^FROM' Dockerfile
 ```
+
+## macos
+
+Native build on an Apple Silicon host — Docker is not usable here, because the Xcode SDK
+cannot legally or practically live in a Linux container. Same layout as `win-linux`
+(`scripts.d/NN-name.sh`, `ffbuild_*` functions) but with a plain driver that runs stages
+directly instead of emitting a Dockerfile.
+
+```
+brew install cmake meson ninja nasm pkg-config autoconf automake libtool svn
+./build.sh
+```
+
+arm64 only, `MACOSX_DEPLOYMENT_TARGET=11.0` — Big Sur is the first release supporting Apple
+Silicon, so it is the floor rather than a compromise. `ARCH` in `util/vars.sh` is the single
+place to touch if x86_64 or a universal binary is ever needed.
+
+Fifteen dependencies: x264, x265, SVT-AV1, dav1d, libvpx, libwebp, opus, mp3lame, vorbis,
+ogg, soxr, zimg, vmaf, vidstab, OpenSSL. Hardware acceleration comes from VideoToolbox and
+AudioToolbox, which are built into FFmpeg and need no external dependency. Vulkan is absent
+— macOS has no native driver, only MoltenVK — as are NVENC, AMF, oneVPL and VA-API.
+
+### Dependency versions are not duplicated
+
+`scripts.d/` entries here carry no version of their own. Each calls `import_pin` to read
+`SCRIPT_REPO` / `SCRIPT_COMMIT` (or `SCRIPT_REV`, lame is still SVN) out of the matching
+win-linux script, so both platforms build the same revisions and a bump via
+`win-linux/util/update_scripts.sh` reaches both at once. Only the build invocation differs,
+since the native toolchain needs no `--host`, `--cross-file` or `DESTDIR` staging.
+
+### Keeping the binary portable
+
+`PKG_CONFIG_LIBDIR` is pinned to the build prefix so Homebrew's `.pc` files are invisible;
+otherwise a `/opt/homebrew` dylib silently ends up linked in. OpenMP is disabled in soxr and
+vidstab for the same reason — Apple clang has no OpenMP runtime, so enabling it would pull
+`libomp.dylib` from Homebrew. `build.sh` finishes with an `otool -L` check and fails the
+build if anything outside the system paths is referenced.
 
 ## Open problems
 

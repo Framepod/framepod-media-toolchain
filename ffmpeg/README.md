@@ -55,6 +55,21 @@ binaries non-redistributable. FFmpeg's built-in AAC encoder is used instead.
 in turn is what makes Intel QSV work on Linux. Those libraries are wrapped with `gen-implib`,
 so they are not runtime dependencies of the shipped binary.
 
+### Reproducibility
+
+Every dependency in `scripts.d/` is pinned to a commit hash by upstream, but the toolchains
+themselves were not: `base-*/Dockerfile` cloned crosstool-ng and llvm-mingw from master, so
+the compiler that built a given FFmpeg tag depended on the day the image was made. That is
+not academic — an LLVM libc++ change silently broke the winarm64 build. All three are now
+pinned via `ARG` (`CT_NG_COMMIT`, `LLVM_MINGW_TAG`, `IMPLIB_COMMIT`), as is meson.
+
+Rust and Node were dropped from the base image entirely. Nothing in the trimmed dependency
+set uses them — they were there for rav1e and the libplacebo shader chain — and they were the
+two least stable inputs in the tree, a `curl | bash` installer and a nightly toolchain.
+
+The one input still floating is `ubuntu:26.04`, which moves with its own updates. Pinning it
+by digest would freeze security fixes too, so it is left alone deliberately.
+
 ### Editing the dependency set
 
 `scripts.d/zz-final.sh` lists every package by name in `ffbuild_depends`. Removing a script
@@ -95,6 +110,21 @@ AudioToolbox, which are built into FFmpeg and need no external dependency. Vulka
 win-linux script, so both platforms build the same revisions and a bump via
 `win-linux/util/update_scripts.sh` reaches both at once. Only the build invocation differs,
 since the native toolchain needs no `--host`, `--cross-file` or `DESTDIR` staging.
+
+Sources are fetched as a shallow single-commit clone. Packages whose build system derives a
+version from `git describe` break under that — x265 silently skips installing `x265.pc` —
+and set `SCRIPT_FULL_CLONE=1` to opt out.
+
+### Darwin deviations
+
+Three recipes need more than a different configure line, because the upstream build systems
+assume a Linux toolchain:
+
+| Package | Why |
+|---|---|
+| libvorbis | `configure.ac` hardcodes `-force_cpusubtype_ALL`, which ld-prime rejects |
+| lame | ships its own `config.rpath`, so autopoint needs `autoreconf -fi` to overwrite it |
+| x265 | builds one library per bit depth; the three are merged with cctools `libtool -static` |
 
 ### Keeping the binary portable
 

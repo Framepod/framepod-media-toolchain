@@ -3,7 +3,8 @@
 import_pin 50-libmp3lame.sh
 
 ffbuild_build() {
-    autoreconf -i
+    # lame commits its own config.rpath; without -f autopoint refuses to overwrite it.
+    autoreconf -fi
 
     export CFLAGS="$CFLAGS -DNDEBUG -Wno-error=incompatible-pointer-types"
 

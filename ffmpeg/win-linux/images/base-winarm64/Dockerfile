@@ -2,8 +2,12 @@ ARG GH_REPO=ghcr.io/btbn/ffmpeg-builds
 ARG BASE_TAG_SUFFIX=
 FROM $GH_REPO/base:latest${BASE_TAG_SUFFIX}
 
+# Upstream clones master, so the toolchain silently follows LLVM main and can
+# change between two builds of the same FFmpeg tag. The tag pins LLVM itself too.
+ARG LLVM_MINGW_TAG=20260728
+
 RUN \
-    git clone --filter=blob:none https://github.com/mstorsjo/llvm-mingw /llvm-mingw && cd /llvm-mingw && \
+    git clone --filter=blob:none --branch "$LLVM_MINGW_TAG" https://github.com/mstorsjo/llvm-mingw /llvm-mingw && cd /llvm-mingw && \
     ./build-all.sh --use-linker=bfd --disable-lldb --disable-lldb-mi /opt/llvm-mingw && \
     cd / && \
     rm -rf llvm-mingw
@@ -20,12 +24,7 @@ RUN \
         \) -delete && \
     mkdir /opt/ffbuild
 
-ENV FFBUILD_TOOLCHAIN=aarch64-w64-mingw32 \
-    FFBUILD_RUST_TARGET=aarch64-pc-windows-gnullvm
-
-RUN \
-    rustup target add "$FFBUILD_RUST_TARGET" && \
-    echo "[target.$FFBUILD_RUST_TARGET]\nlinker = \"${FFBUILD_TOOLCHAIN}-clang\"\nar = \"${FFBUILD_TOOLCHAIN}-llvm-ar\"\n" >> "$CARGO_HOME"/config.toml
+ENV FFBUILD_TOOLCHAIN=aarch64-w64-mingw32
 
 ADD toolchain.cmake /toolchain.cmake
 ADD cross.meson /cross.meson

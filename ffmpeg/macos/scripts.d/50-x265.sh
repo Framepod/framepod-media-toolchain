@@ -2,6 +2,10 @@
 
 import_pin 50-x265.sh
 
+# Version.cmake runs `git describe --tags`; without history the version comes out
+# empty and CMake then silently skips installing x265.pc.
+SCRIPT_FULL_CLONE=1
+
 # x265 builds one library per bit depth and cannot merge them itself on Darwin,
 # so the 10/12-bit variants are built as archives and folded into the main one.
 ffbuild_build() {
@@ -31,7 +35,7 @@ ffbuild_build() {
 
     cd build-8
     mv libx265.a libx265_main.a
-    "$GLIBTOOL" -static -o libx265.a libx265_main.a libx265_main10.a libx265_main12.a
+    "$LIBTOOL_STATIC" -static -o libx265.a libx265_main.a libx265_main10.a libx265_main12.a
     cmake --install .
 }
 

@@ -29,6 +29,14 @@ fetch_source() {
         return
     fi
 
+    # A shallow fetch has no tags and no history, so `git describe` fails in it.
+    # Packages that derive their version that way must opt out of it.
+    if [[ -n $SCRIPT_FULL_CLONE ]]; then
+        git clone -q "$SCRIPT_REPO" "$dir"
+        git -C "$dir" checkout -q "$SCRIPT_PIN"
+        return
+    fi
+
     git init -q "$dir"
     git -C "$dir" remote add origin "$SCRIPT_REPO"
     git -C "$dir" fetch -q --depth=1 origin "$SCRIPT_PIN"

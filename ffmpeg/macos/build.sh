@@ -10,7 +10,7 @@ GIT_BRANCH="${GIT_BRANCH:-master}"
 
 mkdir -p "$PREFIX" "$SRCDIR" "$DONEDIR" "$ARTIFACTS"
 
-for tool in cmake meson ninja nasm pkg-config autoconf automake glibtool svn; do
+for tool in cmake meson ninja nasm pkg-config autoconf automake glibtoolize svn; do
     command -v "$tool" >/dev/null || MISSING+=" $tool"
 done
 if [[ -n $MISSING ]]; then

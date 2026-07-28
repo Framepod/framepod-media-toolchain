@@ -2,8 +2,13 @@ ARG GH_REPO=ghcr.io/btbn/ffmpeg-builds
 ARG BASE_TAG_SUFFIX=
 FROM $GH_REPO/base:latest${BASE_TAG_SUFFIX}
 
+# Upstream tracks crosstool-ng master, so the GCC and glibc versions baked into
+# the toolchain can shift between two builds of the same FFmpeg tag.
+ARG CT_NG_COMMIT=04439a00cad82e9de2c5313e988836acba2c22ce
+
 RUN --mount=src=ct-ng-config,dst=/.config \
     git clone --filter=blob:none https://github.com/crosstool-ng/crosstool-ng.git /ct-ng && cd /ct-ng && \
+    git checkout "$CT_NG_COMMIT" && \
     ./bootstrap && \
     ./configure --enable-local && \
     make -j$(nproc) && \
@@ -34,20 +39,15 @@ RUN \
         \) -delete && \
     mkdir /opt/ffbuild
 
-ENV FFBUILD_TOOLCHAIN=x86_64-ffbuild-linux-gnu \
-    FFBUILD_RUST_TARGET="x86_64-unknown-linux-gnu"
-
-RUN \
-    rustup default nightly && \
-    echo "[unstable]\ntarget-applies-to-host = true\nhost-config = true\n" > "$CARGO_HOME"/config.toml && \
-    echo "[target.$FFBUILD_RUST_TARGET]\nlinker = \"${FFBUILD_TOOLCHAIN}-gcc\"\nar = \"${FFBUILD_TOOLCHAIN}-gcc-ar\"\n" >> "$CARGO_HOME"/config.toml && \
-    echo "[target.host]\nlinker = \"gcc\"\nar = \"ar\"\n" >> "$CARGO_HOME"/config.toml
+ENV FFBUILD_TOOLCHAIN=x86_64-ffbuild-linux-gnu
 
 ADD toolchain.cmake /toolchain.cmake
 ADD cross.meson /cross.meson
 
 ADD gen-implib.sh /usr/bin/gen-implib
-RUN git clone --filter=blob:none --depth=1 https://github.com/yugr/Implib.so /opt/implib
+ARG IMPLIB_COMMIT=30e547b2e8d608f7cd69bc8ec88d047034a40e35
+RUN git clone --filter=blob:none https://github.com/yugr/Implib.so /opt/implib && \
+    git -C /opt/implib checkout "$IMPLIB_COMMIT"
 
 ENV PATH="/opt/ct-ng/bin:${PATH}" \
     FFBUILD_TARGET_FLAGS="--pkg-config=pkg-config --cross-prefix=${FFBUILD_TOOLCHAIN}- --arch=x86_64 --target-os=linux" \

@@ -6,10 +6,12 @@ ranlib = 'x86_64-w64-mingw32-gcc-ranlib'
 strip = 'x86_64-w64-mingw32-strip'
 windres = 'x86_64-w64-mingw32-windres'
 dlltool = 'x86_64-w64-mingw32-dlltool'
-exe_wrapper = ['wine']
 
 [properties]
-needs_exe_wrapper = true
+# Upstream runs target binaries through wine. That only works on an x86_64 host:
+# on arm64 the container's wine is aarch64-windows only and meson's sanity check
+# hard-fails. Skipping run-time checks keeps the build host-independent.
+needs_exe_wrapper = false
 
 [host_machine]
 system = 'windows'

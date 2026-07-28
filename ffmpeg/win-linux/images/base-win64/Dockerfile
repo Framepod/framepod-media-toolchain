@@ -2,8 +2,13 @@ ARG GH_REPO=ghcr.io/btbn/ffmpeg-builds
 ARG BASE_TAG_SUFFIX=
 FROM $GH_REPO/base:latest${BASE_TAG_SUFFIX}
 
+# Upstream tracks crosstool-ng master, so the GCC and glibc versions baked into
+# the toolchain can shift between two builds of the same FFmpeg tag.
+ARG CT_NG_COMMIT=04439a00cad82e9de2c5313e988836acba2c22ce
+
 RUN --mount=src=ct-ng-config,dst=/.config \
     git clone --filter=blob:none https://github.com/crosstool-ng/crosstool-ng.git /ct-ng && cd /ct-ng && \
+    git checkout "$CT_NG_COMMIT" && \
     ./bootstrap && \
     ./configure --enable-local && \
     make -j$(nproc) && \
@@ -26,12 +31,7 @@ RUN \
     apt-get -y clean autoclean && \
     rm -rf /var/lib/apt/lists/*
 
-ENV FFBUILD_TOOLCHAIN=x86_64-w64-mingw32 \
-    FFBUILD_RUST_TARGET=x86_64-pc-windows-gnu
-
-RUN \
-    rustup target add "$FFBUILD_RUST_TARGET" && \
-    echo "[target.$FFBUILD_RUST_TARGET]\nlinker = \"${FFBUILD_TOOLCHAIN}-gcc\"\nar = \"${FFBUILD_TOOLCHAIN}-gcc-ar\"\n" > "$CARGO_HOME"/config.toml
+ENV FFBUILD_TOOLCHAIN=x86_64-w64-mingw32
 
 ADD toolchain.cmake /toolchain.cmake
 ADD cross.meson /cross.meson

@@ -11,6 +11,11 @@ ffbuild_dockerbuild() {
     # Kill build of unused and broken tools
     echo > libvmaf/tools/meson.build
 
+    # The bundled libsvm defines ::swap, which ADL now drags into libc++'s
+    # __split_buffer and makes every call there ambiguous. Only bites the
+    # llvm-mingw targets; libstdc++ resolves swap qualified.
+    sed -i -E 's/\bswap\(/libsvm_swap(/g' libvmaf/src/svm.cpp
+
     mkdir build && cd build
 
     local myconf=(

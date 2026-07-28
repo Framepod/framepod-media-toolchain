@@ -1,0 +1,5 @@
+ffmpeg/win-linux/Dockerfile
+ffmpeg/win-linux/.cache/
+ffmpeg/win-linux/ffbuild/
+ffmpeg/win-linux/artifacts/
+.DS_Store

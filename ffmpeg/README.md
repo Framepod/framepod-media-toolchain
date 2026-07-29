@@ -9,6 +9,8 @@ Self-contained FFmpeg binaries, consumed by the Tauri app as a sidecar (desktop)
 | `macos/` | macos-arm64 | native build, recipes adapted from [markus-perl/ffmpeg-build-script](https://github.com/markus-perl/ffmpeg-build-script) |
 | — | android arm64-v8a | built by `win-linux/` as a fifth target, NDK toolchain |
 
+See [DEVELOPING.md](DEVELOPING.md) for running and debugging the builds locally.
+
 ## win-linux
 
 Docker-based cross-compilation. Every dependency is built from source inside the image and
@@ -168,12 +170,7 @@ vidstab for the same reason — Apple clang has no OpenMP runtime, so enabling i
 `libomp.dylib` from Homebrew. `build.sh` finishes with an `otool -L` check and fails the
 build if anything outside the system paths is referenced.
 
-## Open problems
-
-- **Android is unproven.** The pipeline exists and the dependency graph resolves, but no
-  build has run yet. Everything below describes intent, not a verified result.
-
-### vmaf-cuda
+## vmaf-cuda
 
 `libvmaf_cuda` is built for `linux64` and `win64`, the two targets where an NVIDIA GPU is a
 realistic prospect. It costs no runtime dependency: libvmaf's kernels are compiled to PTX,
@@ -193,9 +190,14 @@ own builtins already declare, so an empty file stands in for a 60 MB wheel; and 
 `bin2c` is replaced by a short script, being the one toolkit binary the clang path would
 otherwise need for what amounts to a hex dump.
 
-`45-vmaf.sh` patches two things upstream assumes: `custom_target` gets none of the project's
-include directories, and the `.cu` include paths are relative to a build directory inside
-`libvmaf/`, which is why the build happens there rather than at the repository root.
+`45-vmaf.sh` patches three things upstream assumes. `custom_target` gets none of the project's
+include directories. The `.cu` include paths are relative to a build directory inside
+`libvmaf/`, which is why the build happens there rather than at the repository root. And a
+`custom_target` gets nothing from `--buildtype` either, so the kernels compiled at clang's `-O0`
+default — nvcc defaults device code to `-O3`, which is why the nvcc path never showed it. That
+shipped once: the PTX carried 110 local-memory depots and CUDA VMAF ran an order of magnitude
+slower than the CPU implementation. `-O3` is now passed explicitly and a `grep` guard fails the
+stage if the patch ever stops applying.
 
 Kernels are compiled for `sm_75`, so Turing and newer. The driver JIT-compiles the PTX for
 the actual device; older cards get no `libvmaf_cuda`.

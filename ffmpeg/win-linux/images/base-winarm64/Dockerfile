@@ -2,15 +2,29 @@ ARG GH_REPO=ghcr.io/btbn/ffmpeg-builds
 ARG BASE_TAG_SUFFIX=
 FROM $GH_REPO/base:latest${BASE_TAG_SUFFIX}
 
-# Upstream clones master, so the toolchain silently follows LLVM main and can
-# change between two builds of the same FFmpeg tag. The tag pins LLVM itself too.
+# Upstream clones master and runs build-all.sh, which compiles all of LLVM: two hours here,
+# five on a 4-vCPU runner, and the toolchain silently follows LLVM main. mstorsjo publishes a
+# release tarball built from the same tag with the same ucrt and cfguard defaults, so take
+# that. The flags upstream passed (bfd linker, no lldb) only shape the host binaries, not the
+# code the toolchain emits. Pinned by hash because a tag alone does not fix the bytes.
 ARG LLVM_MINGW_TAG=20260728
+ARG LLVM_MINGW_SHA256_arm64=2e6458feb4cc116a4b9afc81ae72e1e1c8b52d9a367aeaf26c12f582dd9674cd
+ARG LLVM_MINGW_SHA256_amd64=bdc15cb613f2ef309827a90d409806a45eb68e4e607c290fa1b933d74ab87846
+ARG TARGETARCH
 
 RUN \
-    git clone --filter=blob:none --branch "$LLVM_MINGW_TAG" https://github.com/mstorsjo/llvm-mingw /llvm-mingw && cd /llvm-mingw && \
-    ./build-all.sh --use-linker=bfd --disable-lldb --disable-lldb-mi /opt/llvm-mingw && \
-    cd / && \
-    rm -rf llvm-mingw
+    case "$TARGETARCH" in \
+        arm64) host=aarch64; sha="$LLVM_MINGW_SHA256_arm64" ;; \
+        amd64) host=x86_64;  sha="$LLVM_MINGW_SHA256_amd64" ;; \
+        *) echo "unsupported build host arch: $TARGETARCH" >&2; exit 1 ;; \
+    esac && \
+    name="llvm-mingw-${LLVM_MINGW_TAG}-ucrt-ubuntu-22.04-${host}" && \
+    curl -fsSL -o /tmp/llvm-mingw.tar.xz \
+        "https://github.com/mstorsjo/llvm-mingw/releases/download/${LLVM_MINGW_TAG}/${name}.tar.xz" && \
+    echo "$sha  /tmp/llvm-mingw.tar.xz" | sha256sum -c - && \
+    tar -xf /tmp/llvm-mingw.tar.xz -C /opt && \
+    mv "/opt/$name" /opt/llvm-mingw && \
+    rm /tmp/llvm-mingw.tar.xz
 
 # LLVM/Clang workarounds
 RUN \

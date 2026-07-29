@@ -7,6 +7,12 @@ ffbuild_enabled() {
     return 0
 }
 
+ffbuild_depends() {
+    echo cudaheaders
+    # The CUDA path reaches the driver through nv-codec-headers rather than linking libcuda.
+    echo ffnvcodec
+}
+
 ffbuild_dockerbuild() {
     # Kill build of unused and broken tools
     echo > libvmaf/tools/meson.build
@@ -16,7 +22,51 @@ ffbuild_dockerbuild() {
     # llvm-mingw targets; libstdc++ resolves swap qualified.
     sed -i -E 's/\bswap\(/libsvm_swap(/g' libvmaf/src/svm.cpp
 
-    mkdir build && cd build
+    # 40-cudaheaders.sh only lands this where an NVIDIA GPU is a realistic target, so its
+    # presence is what decides whether libvmaf_cuda gets built.
+    local cuda="$FFBUILD_PREFIX/cuda"
+    if [[ -d $cuda ]]; then
+        install -m755 /dev/stdin /usr/local/bin/bin2c <<'BIN2C'
+#!/usr/bin/env python3
+# Stands in for NVIDIA's bin2c, the only toolkit binary the clang path would need, for a job
+# that is a hex dump: turn each compiled PTX into the C array libvmaf links in.
+import sys
+
+name, padd, const, path = "data", None, False, None
+argv = sys.argv[1:]
+i = 0
+while i < len(argv):
+    if argv[i] == "--name":
+        i += 1
+        name = argv[i]
+    elif argv[i] == "--padd":
+        i += 1
+        padd = int(argv[i], 0)
+    elif argv[i] == "--const":
+        const = True
+    elif not argv[i].startswith("--"):
+        path = argv[i]
+    i += 1
+
+with open(path, "rb") as f:
+    data = f.read()
+if padd is not None:
+    data += bytes([padd])
+
+print("%sunsigned char %s[] = {" % ("const " if const else "", name))
+for off in range(0, len(data), 16):
+    print("".join("0x%02x," % b for b in data[off:off + 16]))
+print("};")
+BIN2C
+
+        # The .cu targets are custom_targets, so meson passes them none of the project's include
+        # dirs, and upstream expects a toolkit on the default search path.
+        sed -i "s|'--cuda-gpu-arch=sm_75',|'--cuda-path=$cuda', '-I', '$FFBUILD_PREFIX/include', '--cuda-gpu-arch=sm_75',|" \
+            libvmaf/src/meson.build
+    fi
+
+    # Those custom targets use include paths relative to a build dir inside libvmaf.
+    cd libvmaf && mkdir build && cd build
 
     local myconf=(
         --prefix="$FFBUILD_PREFIX"
@@ -49,7 +99,11 @@ ffbuild_dockerbuild() {
         return -1
     fi
 
-    meson "${myconf[@]}" ../libvmaf || cat meson-logs/meson-log.txt
+    if [[ -d $cuda ]]; then
+        myconf+=( -Denable_cuda=true -Denable_nvcc=false )
+    fi
+
+    meson "${myconf[@]}" .. || cat meson-logs/meson-log.txt
     ninja -j"$(nproc)"
     DESTDIR="$FFBUILD_DESTDIR" ninja install
 

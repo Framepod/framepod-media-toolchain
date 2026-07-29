@@ -150,14 +150,38 @@ build if anything outside the system paths is referenced.
 
 ## Open problems
 
-- **vmaf-cuda.** `45-vmaf.sh` builds libvmaf without CUDA, so the `libvmaf_cuda` filter is
-  missing. Enabling it needs the CUDA toolkit in the build image. This is straightforward for
-  `linux64`; for `win64` it is not, because nvcc on Linux cannot emit COFF host code. Likely
-  needs splitting device code out via `nvcc -ptx` and loading it through the driver API.
-  Unlike libvmaf, FFmpeg's own CUDA filters need no toolkit at all — `50-ffnvcodec.sh` uses
-  `--enable-cuda-llvm`.
 - **Android.** Not started. No sidecar on Tauri v2 mobile, so the binary ships as
   `jniLibs/<abi>/libffmpeg.so` and is invoked over JNI.
+
+### vmaf-cuda
+
+`libvmaf_cuda` is built for `linux64` and `win64`, the two targets where an NVIDIA GPU is a
+realistic prospect. It costs no runtime dependency: libvmaf's kernels are compiled to PTX,
+embedded in the binary, and loaded through the driver API that `nv-codec-headers` reaches by
+`dlopen`, exactly as NVENC already does. A build without a GPU present is unaffected.
+
+The usual objection to this is that libvmaf needs nvcc, and nvcc on Linux cannot emit COFF
+host code, which would rule out `win64`. That only applies to the default path.
+`-Denable_nvcc=false` makes libvmaf compile the kernels with clang instead, device-only, so
+no host code is involved and the host platform stops mattering.
+
+What clang does still need is CUDA headers and `libdevice`, which `40-cudaheaders.sh` takes
+from NVIDIA's pip wheels — 5.5 MB in the image rather than a toolkit. Three details are not
+obvious: clang refuses a CUDA directory with no `lib64` and no `bin`, so both exist and stay
+empty; it force-includes a cuRAND header to redeclare `blockDim` and `threadIdx`, which its
+own builtins already declare, so an empty file stands in for a 60 MB wheel; and NVIDIA's
+`bin2c` is replaced by a short script, being the one toolkit binary the clang path would
+otherwise need for what amounts to a hex dump.
+
+`45-vmaf.sh` patches two things upstream assumes: `custom_target` gets none of the project's
+include directories, and the `.cu` include paths are relative to a build directory inside
+`libvmaf/`, which is why the build happens there rather than at the repository root.
+
+Kernels are compiled for `sm_75`, so Turing and newer. The driver JIT-compiles the PTX for
+the actual device; older cards get no `libvmaf_cuda`.
+
+FFmpeg's own CUDA filters are unrelated to this and need no headers beyond `nv-codec-headers`
+— `50-ffnvcodec.sh` passes `--enable-cuda-llvm`.
 
 ## CI
 

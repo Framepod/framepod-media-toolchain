@@ -59,10 +59,13 @@ for off in range(0, len(data), 16):
 print("};")
 BIN2C
 
-        # The .cu targets are custom_targets, so meson passes them none of the project's include
-        # dirs, and upstream expects a toolkit on the default search path.
-        sed -i "s|'--cuda-gpu-arch=sm_75',|'--cuda-path=$cuda', '-I', '$FFBUILD_PREFIX/include', '--cuda-gpu-arch=sm_75',|" \
+        # The .cu targets are custom_targets, so meson passes them neither the project's include
+        # dirs, which upstream expects a toolkit on the default search path to supply, nor
+        # anything from --buildtype. nvcc defaults device code to -O3; clang defaults to -O0 and
+        # leaves the kernels spilling their parameters into local memory.
+        sed -i "s|'--cuda-gpu-arch=sm_75',|'--cuda-path=$cuda', '-I', '$FFBUILD_PREFIX/include', '-O3', '--cuda-gpu-arch=sm_75',|" \
             libvmaf/src/meson.build
+        grep -q -- "-O3" libvmaf/src/meson.build || return -1
     fi
 
     # Those custom targets use include paths relative to a build dir inside libvmaf.
@@ -103,7 +106,9 @@ BIN2C
         myconf+=( -Denable_cuda=true -Denable_nvcc=false )
     fi
 
-    meson "${myconf[@]}" .. || cat meson-logs/meson-log.txt
+    # Meson emits the buildtype's -O3 before the image's CFLAGS, so its -O2 wins. Restating it
+    # here is additive; -Dc_args would replace the image's flags rather than extend them.
+    CFLAGS="$CFLAGS -O3" CXXFLAGS="$CXXFLAGS -O3" meson "${myconf[@]}" .. || cat meson-logs/meson-log.txt
     ninja -j"$(nproc)"
     DESTDIR="$FFBUILD_DESTDIR" ninja install
 

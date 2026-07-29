@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 source util/vars.sh "$@"
 
 {
-    cat generate.sh util/run_stage.sh scripts.d/*.sh "variants/${TARGET}-${VARIANT}.sh"
+    cat generate.sh util/run_stage.sh scripts.d/*.sh scripts.d/*/*.sh "variants/${TARGET}-${VARIANT}.sh"
     for addin in "${ADDINS[@]}"; do cat "addins/${addin}.sh"; done
     # Manifest only, so this stays a metadata request rather than a pull.
     docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$TARGET_IMAGE" 2>/dev/null \

@@ -6,7 +6,8 @@ ffbuild_build() {
     # Upstream tools do not cross-check and are not shipped.
     : > libvmaf/tools/meson.build
 
-    meson setup build libvmaf \
+    # Meson emits the buildtype's -O3 before our CFLAGS, so their -O2 wins otherwise.
+    CFLAGS="$CFLAGS -O3" CXXFLAGS="$CXXFLAGS -O3" meson setup build libvmaf \
         --prefix="$PREFIX" \
         --buildtype=release \
         --default-library=static \

@@ -33,10 +33,18 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-REPO="${GITHUB_REPOSITORY:-Framepod/framepod-media-toolchain}"
-REPO="${REPO,,}"
+# Registry paths must be lowercase; the label GHCR matches against must not be, or it links
+# the package to nothing.
+REPO_SLUG="${GITHUB_REPOSITORY:-Framepod/framepod-media-toolchain}"
+REPO="${REPO_SLUG,,}"
 REGISTRY="${REGISTRY_OVERRIDE:-ghcr.io}"
-BASE_IMAGE="${REGISTRY}/${REPO}/base:latest"
+# base is the one image that exists for two host architectures. Everything is arm64, built
+# and run natively; android is the exception because Google ships no linux-aarch64 NDK.
+# download.sh sources this with a placeholder target, so it inherits the choice instead.
+if [[ -z ${BASE_TAG_SUFFIX+x} ]]; then
+    [[ $TARGET == android* ]] && BASE_TAG_SUFFIX="-amd64" || BASE_TAG_SUFFIX=""
+fi
+BASE_IMAGE="${REGISTRY}/${REPO}/base:latest${BASE_TAG_SUFFIX}"
 TARGET_IMAGE="${REGISTRY}/${REPO}/base-${TARGET}:latest"
 IMAGE="${REGISTRY}/${REPO}/${TARGET}-${VARIANT}${ADDINS_STR:+-}${ADDINS_STR}:latest"
 

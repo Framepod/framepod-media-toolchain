@@ -69,6 +69,10 @@ echo "== ffmpeg: $GIT_BRANCH"
 rm -rf "$SRCDIR/ffmpeg"
 git clone -q --filter=blob:none --branch="$GIT_BRANCH" "$FFMPEG_REPO" "$SRCDIR/ffmpeg"
 cd "$SRCDIR/ffmpeg"
+# Release branches move. Every target in a run gets the same commit, resolved once upstream.
+if [[ -n "${GIT_COMMIT:-}" ]]; then
+    git checkout -q --detach "$GIT_COMMIT"
+fi
 
 ./configure \
     --prefix="$PREFIX" \

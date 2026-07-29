@@ -4,6 +4,7 @@ SCRIPT_REPO="https://github.com/google/shaderc.git"
 SCRIPT_COMMIT="49a8724d561c13db22b52f99f2a0e2707a9a9e3c"
 
 ffbuild_enabled() {
+    [[ $TARGET == android* ]] && return -1
     (( $(ffbuild_ffver) > 404 )) || return -1
     return 0
 }

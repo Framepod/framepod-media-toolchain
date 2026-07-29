@@ -6,3 +6,4 @@ ffmpeg/macos/.cache/
 ffmpeg/macos/workspace/
 ffmpeg/macos/artifacts/
 .DS_Store
+.temp

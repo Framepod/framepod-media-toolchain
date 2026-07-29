@@ -61,6 +61,12 @@ ffbuild_dockerbuild() {
             --cross-compile-prefix="$FFBUILD_CROSS_PREFIX"
             linux-aarch64
         )
+    elif [[ $TARGET == android ]]; then
+        myconf+=(
+            --openssldir=/etc/ssl
+            android-arm64
+            -D__ANDROID_API__="$ANDROID_API"
+        )
     else
         echo "Unknown target"
         return -1
@@ -69,11 +75,14 @@ ffbuild_dockerbuild() {
     export CFLAGS="$CFLAGS -fno-strict-aliasing"
     export CXXFLAGS="$CXXFLAGS -fno-strict-aliasing"
 
-    # OpenSSL build system prepends the cross prefix itself
-    export CC="${CC/${FFBUILD_CROSS_PREFIX}/}"
-    export CXX="${CXX/${FFBUILD_CROSS_PREFIX}/}"
-    export AR="${AR/${FFBUILD_CROSS_PREFIX}/}"
-    export RANLIB="${RANLIB/${FFBUILD_CROSS_PREFIX}/}"
+    # OpenSSL build system prepends the cross prefix itself. Not on android: the NDK ships no
+    # bare ar or ranlib, so stripping the prefix would hand the build the host's binutils.
+    if [[ $TARGET != android ]]; then
+        export CC="${CC/${FFBUILD_CROSS_PREFIX}/}"
+        export CXX="${CXX/${FFBUILD_CROSS_PREFIX}/}"
+        export AR="${AR/${FFBUILD_CROSS_PREFIX}/}"
+        export RANLIB="${RANLIB/${FFBUILD_CROSS_PREFIX}/}"
+    fi
 
     ./Configure "${myconf[@]}"
 

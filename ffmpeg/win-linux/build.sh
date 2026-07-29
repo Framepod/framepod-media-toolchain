@@ -23,6 +23,8 @@ FFMPEG_REPO="${FFMPEG_REPO:-https://github.com/FFmpeg/FFmpeg.git}"
 FFMPEG_REPO="${FFMPEG_REPO_OVERRIDE:-$FFMPEG_REPO}"
 GIT_BRANCH="${GIT_BRANCH:-master}"
 GIT_BRANCH="${GIT_BRANCH_OVERRIDE:-$GIT_BRANCH}"
+# Release branches move. Every target in a run gets the same commit, resolved once upstream.
+GIT_COMMIT="${GIT_COMMIT:-}"
 
 BUILD_SCRIPT="$(mktemp)"
 trap "rm -f -- '$BUILD_SCRIPT'" EXIT
@@ -34,11 +36,15 @@ cat <<EOF >"$BUILD_SCRIPT"
 
     git clone --filter=blob:none --branch='$GIT_BRANCH' '$FFMPEG_REPO' ffmpeg
     cd ffmpeg
+    if [[ -n '$GIT_COMMIT' ]]; then
+        git checkout --detach '$GIT_COMMIT'
+    fi
 
     ./configure --prefix=/ffbuild/prefix --pkg-config-flags="--static" \$FFBUILD_TARGET_FLAGS \$FF_CONFIGURE \
         --extra-cflags="\$FF_CFLAGS" --extra-cxxflags="\$FF_CXXFLAGS" --extra-libs="\$FF_LIBS" \
         --extra-ldflags="\$FF_LDFLAGS" --extra-ldexeflags="\$FF_LDEXEFLAGS" \
         --cc="\$CC" --cxx="\$CXX" --ar="\$AR" --ranlib="\$RANLIB" --nm="\$NM" \
+        \${STRIP:+--strip=\$STRIP} \
         --extra-version="\$(date +%Y%m%d)" || { cat ffbuild/config.log; exit 1; }
     make -j\$(nproc) V=1
     make install install-doc

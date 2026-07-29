@@ -12,6 +12,7 @@ SCRIPT_COMMIT3="afae1834257b919848c5deb21a17c7355616b1ee"
 SCRIPT_BRANCH3="sdk/11.1"
 
 ffbuild_enabled() {
+    [[ $TARGET == android* ]] && return -1
     [[ $TARGET == winarm64 ]] && (( $(ffbuild_ffver) <= 801 )) && return -1
     (( $(ffbuild_ffver) >= 404 )) || return -1
     return 0

@@ -65,7 +65,14 @@ EOF
 
     make install DESTDIR="$FFBUILD_DESTDIR"
 
-    echo "Libs.private: -lstdc++" >> "$FFBUILD_DESTPREFIX"/lib/pkgconfig/x265.pc
+    if [[ $TARGET == android ]]; then
+        # The NDK hands CMake a ready-made -l:libunwind.a, and x265's .pc template puts another
+        # -l in front of every entry. Its Libs.private already names the C++ runtime, so a second
+        # one would only shadow the first key.
+        sed -i 's/-l-l:/-l:/g' "$FFBUILD_DESTPREFIX"/lib/pkgconfig/x265.pc
+    else
+        echo "Libs.private: -lstdc++" >> "$FFBUILD_DESTPREFIX"/lib/pkgconfig/x265.pc
+    fi
 }
 
 ffbuild_configure() {

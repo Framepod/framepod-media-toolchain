@@ -13,6 +13,10 @@ ffbuild_dockerdl() {
 }
 
 ffbuild_dockerbuild() {
+    # std::current_exception used without including <exception>; newer libc++ no
+    # longer pulls it in transitively, which breaks the llvm-mingw targets.
+    sed -i '1i #include <exception>' src/zimg/api/zimg.cpp
+
     ./autogen.sh
 
     local myconf=(

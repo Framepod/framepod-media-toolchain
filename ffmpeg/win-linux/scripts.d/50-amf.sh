@@ -4,6 +4,7 @@ SCRIPT_REPO="https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git"
 SCRIPT_COMMIT="6ec029531e356102aafe1e236cfd0ddf739939da"
 
 ffbuild_enabled() {
+    [[ $TARGET == android* ]] && return -1
     return 0
 }
 

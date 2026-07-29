@@ -46,6 +46,13 @@ ffbuild_dockerbuild() {
             --target=arm64-linux-gcc
         )
         export CROSS="$FFBUILD_CROSS_PREFIX"
+    elif [[ $TARGET == android ]]; then
+        myconf+=(
+            --target=arm64-android-gcc
+        )
+        # Left to itself libvpx derives the linker and assembler from CROSS, and the NDK ships
+        # no llvm-gcc and no cross as. The compiler driver is both, which is what r24+ expects.
+        export LD="$CC" AS="$CC"
     else
         echo "Unknown target"
         return -1

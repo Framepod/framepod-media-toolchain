@@ -3,6 +3,7 @@
 SCRIPT_SKIP="1"
 
 ffbuild_enabled() {
+    [[ $TARGET == android* ]] && return -1
     (( $(ffbuild_ffver) > 404 )) || return -1
     return 0
 }

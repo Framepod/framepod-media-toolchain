@@ -90,7 +90,7 @@ BIN2C
         )
     fi
 
-    if [[ $TARGET == win* || $TARGET == linux* ]]; then
+    if [[ $TARGET == win* || $TARGET == linux* || $TARGET == android* ]]; then
         myconf+=(
             --cross-file=/cross.meson
         )

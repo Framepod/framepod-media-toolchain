@@ -4,6 +4,7 @@ SCRIPT_REPO="https://github.com/intel/libvpl.git"
 SCRIPT_COMMIT="d77f9195cf495b937631607333288fd917ae8939"
 
 ffbuild_enabled() {
+    [[ $TARGET == android* ]] && return -1
     [[ $TARGET == *arm64 ]] && return -1
     (( $(ffbuild_ffver) >= 600 )) || return -1
     return 0

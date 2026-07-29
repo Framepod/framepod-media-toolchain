@@ -6,9 +6,15 @@ on:
     - cron: "0 6 * * *"
   workflow_dispatch:
     inputs:
-      tag:
-        description: "FFmpeg tag to build, e.g. n8.1.2. Defaults to the newest one."
+      line:
+        description: "FFmpeg release line to build, e.g. 8.1. Defaults to the newest one."
         required: false
+
+# A second dispatch must queue rather than race the first to the same image tags. Never
+# cancel: these runs are hours long and push partial progress as they go.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -16,25 +22,33 @@ permissions:
 
 jobs:
   check:
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.pick.outputs.tag }}
       line: ${{ steps.pick.outputs.line }}
+      branch: ${{ steps.pick.outputs.branch }}
+      commit: ${{ steps.pick.outputs.commit }}
+      name: ${{ steps.pick.outputs.name }}
       needed: ${{ steps.pick.outputs.needed }}
     steps:
       - uses: actions/checkout@v4
       - id: pick
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REQUESTED: ${{ inputs.tag }}
+          REQUESTED: ${{ inputs.line }}
         run: |
           set -euo pipefail
-          tag="$REQUESTED"
-          if [[ -z "$tag" ]]; then
-            tag=$(git ls-remote --tags --refs https://github.com/FFmpeg/FFmpeg.git \
+          upstream=https://github.com/FFmpeg/FFmpeg.git
+
+          # The newest tag says which line upstream is currently maintaining; the release
+          # branch for that line is what actually gets built, because FFmpeg keeps
+          # backporting fixes to it between point releases.
+          line="$REQUESTED"
+          if [[ -z "$line" ]]; then
+            tag=$(git ls-remote --tags --refs "$upstream" \
                   | grep -oE 'n[0-9]+\.[0-9]+(\.[0-9]+)?$' | sort -V | tail -1)
+            line=${tag#n}; line=${line%.*}
           fi
-          line=${tag#n}; line=${line%.*}
 
           # The addin decides FFVER, which decides the dependency set baked into the image.
           # A line without one would silently build against master's, so stop instead.
@@ -43,22 +57,62 @@ jobs:
             exit 1
           fi
 
+          branch="release/${line}"
+          commit=$(git ls-remote "$upstream" "refs/heads/${branch}" | cut -f1)
+          if [[ -z "$commit" ]]; then
+            echo "::error::upstream has no ${branch}" >&2
+            exit 1
+          fi
+          # Named after the commit, so a release is never silently replaced by a later one and
+          # the exact source is always recoverable.
+          name="n${line}-g${commit:0:9}"
+
           needed=true
-          gh release view "$tag" >/dev/null 2>&1 && needed=false
+          gh release view "$name" >/dev/null 2>&1 && needed=false
 
-          echo "tag=$tag"       >> "$GITHUB_OUTPUT"
-          echo "line=$line"     >> "$GITHUB_OUTPUT"
-          echo "needed=$needed" >> "$GITHUB_OUTPUT"
-          echo "$tag (line $line), build needed: $needed" >> "$GITHUB_STEP_SUMMARY"
+          for v in line branch commit name needed; do echo "$v=${!v}" >> "$GITHUB_OUTPUT"; done
+          echo "$name ($branch @ $commit), build needed: $needed" >> "$GITHUB_STEP_SUMMARY"
 
-  win-linux:
+  # Everything below costs hours and pushes nothing until it succeeds, so resolve the whole
+  # dependency graph first. This catches a broken recipe, a stage that resolves to nothing and
+  # a missing addin in seconds instead of an hour into a build.
+  preflight:
     needs: check
     if: needs.check.outputs.needed == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: shell syntax
+        working-directory: ffmpeg/win-linux
+        run: bash -n *.sh util/*.sh variants/*.sh scripts.d/*.sh scripts.d/*/*.sh
+      - name: resolve dependency graphs
+        working-directory: ffmpeg/win-linux
+        env:
+          LINE: ${{ needs.check.outputs.line }}
+        run: |
+          set -euo pipefail
+          for t in win64 winarm64 linux64 linuxarm64 android; do
+            ./generate.sh "$t" gpl "$LINE" >/dev/null
+            echo "$t: $(grep -c '^FROM' Dockerfile) stages"
+          done
+
+  win-linux:
+    needs: [check, preflight]
+    if: needs.check.outputs.needed == 'true'
+    timeout-minutes: 300
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        target: [win64, winarm64, linux64, linuxarm64]
+        include:
+          # arm64 runners, because the images are arm64; the cross-compilers inside them do
+          # not care what host they run on. android is the exception: no linux-aarch64 NDK.
+          - { target: win64,      runner: ubuntu-24.04-arm }
+          - { target: winarm64,   runner: ubuntu-24.04-arm }
+          - { target: linux64,    runner: ubuntu-24.04-arm }
+          - { target: linuxarm64, runner: ubuntu-24.04-arm }
+          - { target: android,    runner: ubuntu-latest }
     steps:
       - uses: actions/checkout@v4
       - name: free disk space
@@ -69,7 +123,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: dependency image
         working-directory: ffmpeg/win-linux
@@ -82,13 +136,32 @@ jobs:
           set -euo pipefail
           repo="${GITHUB_REPOSITORY,,}"
           image="ghcr.io/${repo}/${{ matrix.target }}-gpl-${LINE}:latest"
-          # Patch releases on the same line reuse it; only a new line pays for a build.
-          docker pull "$image" || ./makeimage.sh ${{ matrix.target }} gpl "$LINE"
+          host="$(dpkg --print-architecture)"
+
+          # Patch releases on the same line reuse it; only a new line pays for a build. The tag
+          # says nothing about what is inside, so a leftover from a differently-shaped runner or
+          # from before a recipe change pulls clean and then dies an hour later. Both have cost
+          # us a full run already, so reuse has to match on architecture and on recipes alike.
+          want="$(./util/recipe_hash.sh ${{ matrix.target }} gpl "$LINE")"
+          have_arch=""
+          have_recipe=""
+          if docker pull "$image" >/dev/null 2>&1; then
+            have_arch="$(docker image inspect -f '{{.Architecture}}' "$image")"
+            have_recipe="$(docker image inspect -f '{{index .Config.Labels "org.framepod.recipe"}}' "$image")"
+          fi
+
+          if [[ "$have_arch" == "$host" && "$have_recipe" == "$want" ]]; then
+            echo "reusing $image ($have_arch, $have_recipe)"
+          else
+            echo "building $image: have '${have_arch:-nothing}/${have_recipe:-nothing}', need $host/$want"
+            ./makeimage.sh ${{ matrix.target }} gpl "$LINE"
+          fi
 
       - name: build ffmpeg
         working-directory: ffmpeg/win-linux
         env:
-          GIT_BRANCH_OVERRIDE: ${{ needs.check.outputs.tag }}
+          GIT_BRANCH_OVERRIDE: ${{ needs.check.outputs.branch }}
+          GIT_COMMIT: ${{ needs.check.outputs.commit }}
         run: ./build.sh ${{ matrix.target }} gpl ${{ needs.check.outputs.line }}
 
       - uses: actions/upload-artifact@v4
@@ -100,6 +173,7 @@ jobs:
   macos:
     needs: check
     if: needs.check.outputs.needed == 'true'
+    timeout-minutes: 240
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -117,7 +191,8 @@ jobs:
       - name: build ffmpeg
         working-directory: ffmpeg/macos
         env:
-          GIT_BRANCH: ${{ needs.check.outputs.tag }}
+          GIT_BRANCH: ${{ needs.check.outputs.branch }}
+          GIT_COMMIT: ${{ needs.check.outputs.commit }}
         run: ./build.sh
       - uses: actions/upload-artifact@v4
         with:
@@ -127,6 +202,7 @@ jobs:
 
   release:
     needs: [check, win-linux, macos]
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -135,12 +211,16 @@ jobs:
           merge-multiple: true
       - env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ needs.check.outputs.tag }}
+          NAME: ${{ needs.check.outputs.name }}
+          BRANCH: ${{ needs.check.outputs.branch }}
+          COMMIT: ${{ needs.check.outputs.commit }}
         run: |
           set -euo pipefail
           # The .txt files build.sh drops for Actions are bookkeeping, not deliverables.
           find dist -name '*.txt' ! -name 'LICENSE.txt' -delete
-          gh release create "$TAG" dist/* \
+          gh release create "$NAME" dist/* \
             --repo "$GITHUB_REPOSITORY" \
-            --title "FFmpeg $TAG" \
-            --notes "Self-contained GPLv3 builds of FFmpeg $TAG for win64, winarm64, linux64, linuxarm64 and macos-arm64."
+            --title "FFmpeg $NAME" \
+            --notes "Self-contained GPLv3 builds for win64, winarm64, linux64, linuxarm64, android-arm64 and macos-arm64.
+
+          Built from FFmpeg \`$BRANCH\` at [\`$COMMIT\`](https://github.com/FFmpeg/FFmpeg/commit/$COMMIT), which carries the fixes backported since the last point release."

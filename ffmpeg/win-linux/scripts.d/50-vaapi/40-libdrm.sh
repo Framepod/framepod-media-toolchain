@@ -4,6 +4,7 @@ SCRIPT_REPO="https://gitlab.freedesktop.org/mesa/drm.git"
 SCRIPT_COMMIT="35c7c536d5d1c0124a416a531df4432508d7d2f1"
 
 ffbuild_enabled() {
+    [[ $TARGET == android* ]] && return -1
     [[ $TARGET != linux* ]] && return -1
     return 0
 }

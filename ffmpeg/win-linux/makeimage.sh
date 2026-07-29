@@ -22,14 +22,36 @@ push_image() {
     [[ -z "$PUSH" ]] || docker push "$1"
 }
 
+# A runner starts with an empty cache directory and throws it away at the end, so mode=max
+# there only costs disk and export time. In CI the registry is the cache that survives.
+cache_args() {
+    CACHE_ARGS=()
+    if [[ -z "$GITHUB_ACTIONS" ]]; then
+        CACHE_ARGS=(
+            --cache-from=type=local,src=".cache/$1"
+            --cache-to=type=local,mode=max,dest=".cache/$1"
+        )
+    fi
+}
+
+# download.sh runs with a placeholder target and would otherwise resolve base to the wrong
+# architecture for android.
+export BASE_TAG_SUFFIX
+
+# GHCR links a package to its repository through this label. Without it a new package has no
+# source to inherit access from, and GITHUB_TOKEN, which is only ever authorised for its own
+# repository, is refused the write.
+SOURCE_LABEL="org.opencontainers.image.source=https://github.com/${REPO_SLUG}"
+
 if [[ -z "$QUICKBUILD" ]]; then
     # CI splits the toolchain across jobs: one publishes `base`, the four target jobs take it
     # from the registry with SKIP_BASE instead of each rebuilding it.
     BASE_IMAGE_TARGET="${PWD}/.cache/images/base"
     if [[ -z "$SKIP_BASE" && ! -d "${BASE_IMAGE_TARGET}" ]]; then
+        cache_args "${BASE_IMAGE/:/_}"
         docker buildx --builder ffbuilder build \
-            --cache-from=type=local,src=.cache/"${BASE_IMAGE/:/_}" \
-            --cache-to=type=local,mode=max,dest=.cache/"${BASE_IMAGE/:/_}" \
+            "${CACHE_ARGS[@]}" \
+            --label "$SOURCE_LABEL" \
             --load --tag "${BASE_IMAGE}" \
             "images/base"
         mkdir -p "${BASE_IMAGE_TARGET}"
@@ -45,11 +67,13 @@ if [[ -z "$QUICKBUILD" ]]; then
 
     IMAGE_TARGET="${PWD}/.cache/images/base-${TARGET}"
     if [[ ! -d "${IMAGE_TARGET}" ]]; then
+        cache_args "${TARGET_IMAGE/:/_}"
         docker buildx --builder ffbuilder build \
-            --cache-from=type=local,src=.cache/"${TARGET_IMAGE/:/_}" \
-            --cache-to=type=local,mode=max,dest=.cache/"${TARGET_IMAGE/:/_}" \
+            "${CACHE_ARGS[@]}" \
             --build-arg GH_REPO="${REGISTRY}/${REPO}" \
+            --build-arg BASE_TAG_SUFFIX="${BASE_TAG_SUFFIX}" \
             --build-context "${BASE_IMAGE}=${BASE_CONTEXT_SRC}" \
+            --label "$SOURCE_LABEL" \
             --load --tag "${TARGET_IMAGE}" \
             "images/base-${TARGET}"
         mkdir -p "${IMAGE_TARGET}"
@@ -71,10 +95,14 @@ fi
 ./download.sh
 ./generate.sh "$TARGET" "$VARIANT" "${ADDINS[@]}"
 
+RECIPE_LABEL="org.framepod.recipe=$(./util/recipe_hash.sh "$TARGET" "$VARIANT" "${ADDINS[@]}")"
+
+cache_args "${IMAGE/:/_}"
 docker buildx --builder ffbuilder build \
-    --cache-from=type=local,src=.cache/"${IMAGE/:/_}" \
-    --cache-to=type=local,mode=max,dest=.cache/"${IMAGE/:/_}" \
+    "${CACHE_ARGS[@]}" \
     --build-context "${TARGET_IMAGE}=${CONTEXT_SRC}" \
+    --label "$SOURCE_LABEL" \
+    --label "$RECIPE_LABEL" \
     --load --tag "$IMAGE" .
 
 push_image "$IMAGE"

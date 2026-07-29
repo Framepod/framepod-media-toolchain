@@ -4,6 +4,20 @@ name: toolchain images
 # deliberate act, and a full run costs hours. The release pipeline consumes what this pushes.
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: "Build one group instead of all three. The runner starts with an empty
+          buildx cache, so a rerun for one target would otherwise redo hours of work."
+        required: false
+        type: choice
+        default: all
+        options: [all, base, toolchain, android]
+
+# A second dispatch must queue rather than race the first to the same image tags. Never
+# cancel: these runs are hours long and push partial progress as they go.
+concurrency:
+  group: toolchain
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -16,6 +30,8 @@ env:
 jobs:
   # Builds `base`, which the four toolchain images share, and gets base-linux64 on the way.
   base:
+    if: ${{ inputs.only == 'all' || inputs.only == 'base' }}
+    timeout-minutes: 180
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +43,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
       - name: build base and base-linux64
         working-directory: ffmpeg/win-linux
         env:
@@ -37,6 +53,11 @@ jobs:
 
   toolchain:
     needs: base
+    # Runs after base when both are selected, and on its own against the published base when
+    # only this group is asked for, which is why a skipped dependency still counts.
+    if: ${{ !cancelled() && (inputs.only == 'all' || inputs.only == 'toolchain')
+        && contains(fromJSON('["success","skipped"]'), needs.base.result) }}
+    timeout-minutes: 180
     runs-on: ubuntu-24.04-arm
     strategy:
       fail-fast: false
@@ -52,7 +73,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
       - name: build base-${{ matrix.target }}
         working-directory: ffmpeg/win-linux
         env:
@@ -60,3 +81,27 @@ jobs:
           BASE_ONLY: 1
           SKIP_BASE: 1
         run: ./makeimage.sh ${{ matrix.target }} gpl
+
+  # Separate from the matrix above: Google ships no linux-aarch64 NDK, so this is the one
+  # toolchain that has to be x86_64, and it builds its own base rather than sharing theirs.
+  android:
+    if: ${{ inputs.only == 'all' || inputs.only == 'android' }}
+    timeout-minutes: 120
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+          df -h /
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+      - name: build base-amd64 and base-android
+        working-directory: ffmpeg/win-linux
+        env:
+          PUSH: 1
+          BASE_ONLY: 1
+        run: ./makeimage.sh android gpl

@@ -7,6 +7,7 @@ SCRIPT_REPO2="https://github.com/KhronosGroup/OpenCL-ICD-Loader.git"
 SCRIPT_COMMIT2="18fdcd58286376124f938948aa8ed156079c1c16"
 
 ffbuild_enabled() {
+    [[ $TARGET == android* ]] && return -1
     return 0
 }
 

@@ -7,7 +7,7 @@ Self-contained FFmpeg binaries, consumed by the Tauri app as a sidecar (desktop)
 |---|---|---|
 | `win-linux/` | win64, winarm64, linux64, linuxarm64 | [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) @ `8c736b2`, trimmed |
 | `macos/` | macos-arm64 | native build, recipes adapted from [markus-perl/ffmpeg-build-script](https://github.com/markus-perl/ffmpeg-build-script) |
-| `android/` | arm64-v8a, armeabi-v7a, x86_64 | not started — NDK, `ffmpeg-kit` scripts as reference |
+| — | android arm64-v8a | built by `win-linux/` as a fifth target, NDK toolchain |
 
 ## win-linux
 
@@ -96,6 +96,26 @@ Dry-run the graph without Docker:
 ./generate.sh linux64 gpl && grep '^FROM' Dockerfile
 ```
 
+### android
+
+A fifth target of the same pipeline rather than its own tree: the NDK runs under Linux, so
+the Docker scheme applies unchanged and the recipes are shared. Only `arm64-v8a`, at API 24,
+which is what Tauri's Android project targets and also the floor for 64-bit ARM.
+
+The dependency set is the macOS one — no VA-API, AMF, NVENC, oneVPL, Vulkan, OpenCL or X11.
+Hardware acceleration is MediaCodec, and since FFmpeg 8 that reaches the codecs through the
+NDK's C API (`mediacodec_deps="android mediandk pthreads"`) rather than JNI, so it needs no
+JavaVM in the process and survives being run as a separate process.
+
+Tauri v2 has no sidecar on mobile. Android grants execute permission only to files under the
+app's `nativeLibraryDir`, which is populated from `jniLibs`, so the CLI ships as
+`jniLibs/arm64-v8a/libffmpeg.so` — still a PIE executable, run with `ProcessBuilder`, despite
+the name.
+
+This is the one image that must be x86_64: Google publishes the NDK for `linux` and `darwin`,
+never `linux-aarch64`. Its CI job therefore runs on `ubuntu-latest` while the other four use
+arm64 runners, and `base` exists in two architectures, the amd64 one tagged `latest-amd64`.
+
 ## macos
 
 Native build on an Apple Silicon host — Docker is not usable here, because the Xcode SDK
@@ -150,8 +170,8 @@ build if anything outside the system paths is referenced.
 
 ## Open problems
 
-- **Android.** Not started. No sidecar on Tauri v2 mobile, so the binary ships as
-  `jniLibs/<abi>/libffmpeg.so` and is invoked over JNI.
+- **Android is unproven.** The pipeline exists and the dependency graph resolves, but no
+  build has run yet. Everything below describes intent, not a verified result.
 
 ### vmaf-cuda
 

@@ -4,6 +4,7 @@ SCRIPT_REPO="https://github.com/KhronosGroup/SPIRV-Headers.git"
 SCRIPT_COMMIT="02c0394e57af6dfdda7f68973df6aa20fc3f5def"
 
 ffbuild_enabled() {
+    [[ $TARGET == android* ]] && return -1
     (( $(ffbuild_ffver) > 404 )) || return -1
     return 0
 }

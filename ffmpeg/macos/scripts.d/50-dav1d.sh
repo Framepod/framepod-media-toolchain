@@ -3,7 +3,8 @@
 import_pin 50-dav1d.sh
 
 ffbuild_build() {
-    meson setup build \
+    # Meson emits the buildtype's -O3 before our CFLAGS, so their -O2 wins otherwise.
+    CFLAGS="$CFLAGS -O3" meson setup build \
         --prefix="$PREFIX" \
         --buildtype=release \
         --default-library=static

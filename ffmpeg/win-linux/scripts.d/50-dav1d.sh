@@ -26,7 +26,9 @@ ffbuild_dockerbuild() {
         return -1
     fi
 
-    meson "${myconf[@]}" ..
+    # Meson emits the buildtype's -O3 before the image's CFLAGS, so its -O2 wins and dav1d ends
+    # up a level below what upstream ships. Restating it here is additive; -Dc_args is not.
+    CFLAGS="$CFLAGS -O3" meson "${myconf[@]}" ..
     ninja -j$(nproc)
     DESTDIR="$FFBUILD_DESTDIR" ninja install
 }

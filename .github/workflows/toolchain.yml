@@ -1,0 +1,54 @@
+name: toolchain images
+
+# Manual only. These images change just when a pin in images/*/Dockerfile moves, which is a
+# deliberate act, and a full run costs hours. The release pipeline consumes what this pushes.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  # The images are arm64 and hold cross-compilers; host arch is independent of what they emit.
+  REGISTRY: ghcr.io
+
+jobs:
+  # Builds `base`, which the four toolchain images share, and gets base-linux64 on the way.
+  base:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: build base and base-linux64
+        working-directory: ffmpeg/win-linux
+        env:
+          PUSH: 1
+          BASE_ONLY: 1
+        run: ./makeimage.sh linux64 gpl
+
+  toolchain:
+    needs: base
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [win64, winarm64, linuxarm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: build base-${{ matrix.target }}
+        working-directory: ffmpeg/win-linux
+        env:
+          PUSH: 1
+          BASE_ONLY: 1
+          SKIP_BASE: 1
+        run: ./makeimage.sh ${{ matrix.target }} gpl

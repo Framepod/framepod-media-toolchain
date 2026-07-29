@@ -156,8 +156,29 @@ build if anything outside the system paths is referenced.
   needs splitting device code out via `nvcc -ptx` and loading it through the driver API.
   Unlike libvmaf, FFmpeg's own CUDA filters need no toolkit at all — `50-ffnvcodec.sh` uses
   `--enable-cuda-llvm`.
-- **CI.** No workflows yet. Needs a cron job polling FFmpeg's tags, since GitHub Actions
-  cannot trigger on another repository's releases.
+- **Android.** Not started. No sidecar on Tauri v2 mobile, so the binary ships as
+  `jniLibs/<abi>/libffmpeg.so` and is invoked over JNI.
+
+## CI
+
+Two pipelines, split by how often their output changes. Both run on `ubuntu-24.04-arm`,
+because the images are arm64 — the cross-compilers inside them do not care what host they
+run on, and macOS builds on `macos-15`.
+
+`toolchain.yml` is manual (`workflow_dispatch`). It builds `base` and the four
+`base-<target>` images and pushes them to ghcr, which takes hours and is only warranted when
+a pin in `images/*/Dockerfile` moves. `makeimage.sh` gained `BASE_ONLY`, `SKIP_BASE` and
+`PUSH` for it: one job publishes `base`, the rest pull it instead of rebuilding it four times.
+
+`release.yml` polls FFmpeg's tags on a daily cron, since Actions cannot trigger on another
+repository's releases, and also takes a tag by hand. It builds the dependency image for the
+minor line if ghcr has none yet, then FFmpeg itself for all five targets, and publishes a
+release. Patch releases on a line reuse the image and cost only the FFmpeg build.
+
+The version reaches both steps as one addin, which is what keeps them consistent: `FFVER`
+is derived from `ADDINS_STR` and decides which dependencies go into the image and which
+`FF_CONFIGURE` flags are baked in, so an image built for one line cannot be used to build
+another. A line with no `addins/<line>.sh` fails the run rather than falling back to master.
 
 ## Licensing
 

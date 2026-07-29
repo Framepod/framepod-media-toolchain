@@ -105,6 +105,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: host toolchain
         run: brew install cmake meson ninja nasm pkg-config autoconf automake libtool svn
+      # There is no image to inherit here, so the fifteen dependencies would be rebuilt from
+      # source on three cores every release. The prefix and its done markers are ~190 MB and
+      # only go stale when a pin moves, which the key tracks.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ffmpeg/macos/workspace
+            ffmpeg/macos/.cache/done
+          key: macos-deps-${{ hashFiles('ffmpeg/macos/scripts.d/*.sh', 'ffmpeg/macos/util/*.sh', 'ffmpeg/win-linux/scripts.d/*.sh') }}
       - name: build ffmpeg
         working-directory: ffmpeg/macos
         env:

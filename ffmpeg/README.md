@@ -63,6 +63,20 @@ the compiler that built a given FFmpeg tag depended on the day the image was mad
 not academic — an LLVM libc++ change silently broke the winarm64 build. All three are now
 pinned via `ARG` (`CT_NG_COMMIT`, `LLVM_MINGW_TAG`, `IMPLIB_COMMIT`), as is meson.
 
+Pinning llvm-mingw to a release tag also removed the reason to compile it. Upstream runs
+`build-all.sh`, which builds all of LLVM — 99 minutes here, an estimated five hours on a
+4-vCPU runner, against a 6-hour job limit — but that is only unavoidable while tracking
+master, since no prebuilt exists for an arbitrary commit. A tag has one: `base-winarm64`
+now downloads mstorsjo's release tarball, verified by sha256 and selected by `TARGETARCH`,
+which takes 20 seconds. The two were compared before the swap — same LLVM commit, same
+mingw-w64 15.0, bit-identical target headers, and the tarball is a strict superset of files
+(it keeps lldb, which upstream's `--disable-lldb` dropped). The flags upstream passed
+(`--use-linker=bfd`, `--disable-lldb`) shape only the host binaries, not emitted code; the
+release build's `--thinlto --pgo` is why the image shrank from 5.76 GB to 3.27 GB.
+
+crosstool-ng has no equivalent — it publishes no binaries, so `base-win64`, `base-linux64`
+and `base-linuxarm64` still build their toolchain, about 26 minutes each.
+
 Rust and Node were dropped from the base image entirely. Nothing in the trimmed dependency
 set uses them — they were there for rav1e and the libplacebo shader chain — and they were the
 two least stable inputs in the tree, a `curl | bash` installer and a nightly toolchain.

@@ -1,0 +1,63 @@
+name: nvcc fatbin verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      line:
+        description: "FFmpeg release line"
+        required: true
+        default: "8.1"
+
+concurrency:
+  group: nvcc-fatbin-${{ inputs.line }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: shell syntax and dependency graphs
+        working-directory: ffmpeg/win-linux
+        env:
+          LINE: ${{ inputs.line }}
+        run: |
+          set -euo pipefail
+          bash -n *.sh util/*.sh variants/*.sh addins/*.sh scripts.d/*.sh scripts.d/*/*.sh
+          for target in linux64 win64; do
+            ./generate.sh "$target" gpl "$LINE" nvcc-fatbin >/dev/null
+            grep -q "VMAF_CUDA_CODEGEN=nvcc" Dockerfile
+          done
+
+  build:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [linux64, win64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+          df -h /
+      - name: build dependency image
+        working-directory: ffmpeg/win-linux
+        env:
+          BASE_DISTRO: ubuntu:24.04
+          NOCLEAN: 1
+        run: ./makeimage.sh ${{ matrix.target }} gpl "${{ inputs.line }}" nvcc-fatbin
+      - name: build FFmpeg
+        working-directory: ffmpeg/win-linux
+        env:
+          FFBUILD_OUTPUT_DIR: ${{ runner.temp }}/ffmpeg-${{ matrix.target }}
+        run: ./build.sh ${{ matrix.target }} gpl "${{ inputs.line }}" nvcc-fatbin
+      - name: verify CUDA codecs and AV1 software decode
+        working-directory: ffmpeg/win-linux
+        run: bash ./verify-build.sh "${{ runner.temp }}/ffmpeg-${{ matrix.target }}" ${{ matrix.target }} gpl "${{ inputs.line }}" nvcc-fatbin

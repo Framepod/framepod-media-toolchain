@@ -25,7 +25,7 @@ ffbuild_dockerbuild() {
     # 40-cudaheaders.sh only lands this where an NVIDIA GPU is a realistic target, so its
     # presence is what decides whether libvmaf_cuda gets built.
     local cuda="$FFBUILD_PREFIX/cuda"
-    if [[ -d $cuda ]]; then
+    if [[ -d $cuda && ${VMAF_CUDA_CODEGEN:-clang} == clang ]]; then
         install -m755 /dev/stdin /usr/local/bin/bin2c <<'BIN2C'
 #!/usr/bin/env python3
 # Stands in for NVIDIA's bin2c, the only toolkit binary the clang path would need, for a job
@@ -58,7 +58,52 @@ for off in range(0, len(data), 16):
     print("".join("0x%02x," % b for b in data[off:off + 16]))
 print("};")
 BIN2C
+    fi
 
+    if [[ -d $cuda && ${VMAF_CUDA_CODEGEN:-clang} == nvcc ]]; then
+        export PATH="$cuda/bin:$PATH"
+        nvcc --version
+        python3 - <<'PY'
+import os
+from pathlib import Path
+
+path = Path("libvmaf/src/meson.build")
+source = path.read_text()
+old = """    else
+        nvcc_exe = find_program('clang')
+        gencode = [
+            '--cuda-gpu-arch=sm_75',
+            '--cuda-device-only',
+            '-S'
+            # many complaints about device intrinsics when compiling without CTK and the ffmpeg cuda runtime header
+            #            '-nocudainc',
+            #            '-nocudalib',
+        ]
+    endif"""
+prefix = os.environ["FFBUILD_PREFIX"]
+ccbin = os.environ["NVCC_CCBIN"]
+new = f"""    else
+        nvcc_exe = find_program('nvcc')
+        gencode = [
+            '--fatbin',
+            '-O3',
+            '-ccbin', '{ccbin}',
+            '-I', '{prefix}/include',
+            '-gencode=arch=compute_75,code=sm_75',
+            '-gencode=arch=compute_80,code=sm_80',
+            '-gencode=arch=compute_86,code=sm_86',
+            '-gencode=arch=compute_89,code=sm_89',
+            '-gencode=arch=compute_90,code=sm_90',
+            '-gencode=arch=compute_100,code=sm_100',
+            '-gencode=arch=compute_120,code=sm_120',
+            '-gencode=arch=compute_120,code=compute_120',
+        ]
+    endif"""
+if source.count(old) != 1:
+    raise SystemExit("unexpected libvmaf CUDA codegen block")
+path.write_text(source.replace(old, new))
+PY
+    elif [[ -d $cuda ]]; then
         # The .cu targets are custom_targets, so meson passes them neither the project's include
         # dirs, which upstream expects a toolkit on the default search path to supply, nor
         # anything from --buildtype. nvcc defaults device code to -O3; clang defaults to -O0 and
@@ -110,6 +155,11 @@ BIN2C
     # here is additive; -Dc_args would replace the image's flags rather than extend them.
     CFLAGS="$CFLAGS -O3" CXXFLAGS="$CXXFLAGS -O3" meson "${myconf[@]}" .. || cat meson-logs/meson-log.txt
     ninja -j"$(nproc)"
+    if [[ -d $cuda && ${VMAF_CUDA_CODEGEN:-clang} == nvcc ]]; then
+        grep -q -- "-gencode=arch=compute_89,code=sm_89" build.ninja
+        mapfile -t fatbins < <(find . -type f -name '*.fatbin' -size +0c)
+        [[ ${#fatbins[@]} -eq 7 ]]
+    fi
     DESTDIR="$FFBUILD_DESTDIR" ninja install
 
     sed -i 's/Libs.private:/Libs.private: -lstdc++/; t; $ a Libs.private: -lstdc++' "$FFBUILD_DESTPREFIX"/lib/pkgconfig/libvmaf.pc

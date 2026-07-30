@@ -182,6 +182,12 @@ host code, which would rule out `win64`. That only applies to the default path.
 `-Denable_nvcc=false` makes libvmaf compile the kernels with clang instead, device-only, so
 no host code is involved and the host platform stops mattering.
 
+The verification-only `nvcc-fatbin` addin keeps that device-only split but replaces clang
+with NVIDIA's compiler custom target. It emits native code for `sm_75`, `sm_80`, `sm_86`,
+`sm_89`, `sm_90`, `sm_100` and `sm_120`, plus `compute_120` PTX for newer devices. FFmpeg
+itself deliberately remains configured with `--enable-cuda-llvm`, not the non-redistributable
+`--enable-cuda-nvcc`.
+
 What clang does still need is CUDA headers and `libdevice`, which `40-cudaheaders.sh` takes
 from NVIDIA's pip wheels — 5.5 MB in the image rather than a toolkit. Three details are not
 obvious: clang refuses a CUDA directory with no `lib64` and no `bin`, so both exist and stay
@@ -199,17 +205,16 @@ shipped once: the PTX carried 110 local-memory depots and CUDA VMAF ran an order
 slower than the CPU implementation. `-O3` is now passed explicitly and a `grep` guard fails the
 stage if the patch ever stops applying.
 
-Kernels are compiled for `sm_75`, so Turing and newer. The driver JIT-compiles the PTX for
-the actual device; older cards get no `libvmaf_cuda`.
+Release kernels are compiled for `sm_75`, so Turing and newer. The driver JIT-compiles the
+PTX for the actual device; older cards get no `libvmaf_cuda`.
 
 FFmpeg's own CUDA filters are unrelated to this and need no headers beyond `nv-codec-headers`
 — `50-ffnvcodec.sh` passes `--enable-cuda-llvm`.
 
 ## CI
 
-Two pipelines, split by how often their output changes. Both run on `ubuntu-24.04-arm`,
-because the images are arm64 — the cross-compilers inside them do not care what host they
-run on, and macOS builds on `macos-15`.
+The release and toolchain pipelines run on `ubuntu-24.04-arm`, because their images are arm64 —
+the cross-compilers inside them do not care what host they run on. macOS builds on `macos-15`.
 
 `toolchain.yml` is manual (`workflow_dispatch`). It builds `base` and the four
 `base-<target>` images and pushes them to ghcr, which takes hours and is only warranted when
@@ -220,6 +225,11 @@ a pin in `images/*/Dockerfile` moves. `makeimage.sh` gained `BASE_ONLY`, `SKIP_B
 repository's releases, and also takes a tag by hand. It builds the dependency image for the
 minor line if ghcr has none yet, then FFmpeg itself for all five targets, and publishes a
 release. Patch releases on a line reuse the image and cost only the FFmpeg build.
+
+`nvcc-fatbin.yml` is a manual, compile-only experiment for `linux64` and `win64`. Its two
+matrix legs build locally on x86 runners with an Ubuntu 24.04 base supported by CUDA 12.8,
+check the NVCC fatbins, CUDA/NVENC codec registrations and actual AV1 software decoding, and
+upload or push nothing. The normal release remains on Ubuntu 26.04 and embedded clang PTX.
 
 The version reaches both steps as one addin, which is what keeps them consistent: `FFVER`
 is derived from `ADDINS_STR` and decides which dependencies go into the image and which

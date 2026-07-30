@@ -3,6 +3,12 @@ set -xeo pipefail
 cd "$(dirname "$0")"
 source util/vars.sh
 
+BASE_DISTRO="${BASE_DISTRO:-ubuntu:26.04}"
+BASE_CACHE_SUFFIX=""
+if [[ "$BASE_DISTRO" != "ubuntu:26.04" ]]; then
+    BASE_CACHE_SUFFIX="-${BASE_DISTRO//[\/:]/-}"
+fi
+
 TMPCFG="$(mktemp --suffix=.toml)"
 cat <<EOF >"$TMPCFG"
 [worker.oci]
@@ -46,11 +52,12 @@ SOURCE_LABEL="org.opencontainers.image.source=https://github.com/${REPO_SLUG}"
 if [[ -z "$QUICKBUILD" ]]; then
     # CI splits the toolchain across jobs: one publishes `base`, the four target jobs take it
     # from the registry with SKIP_BASE instead of each rebuilding it.
-    BASE_IMAGE_TARGET="${PWD}/.cache/images/base"
+    BASE_IMAGE_TARGET="${PWD}/.cache/images/base${BASE_CACHE_SUFFIX}"
     if [[ -z "$SKIP_BASE" && ! -d "${BASE_IMAGE_TARGET}" ]]; then
         cache_args "${BASE_IMAGE/:/_}"
         docker buildx --builder ffbuilder build \
             "${CACHE_ARGS[@]}" \
+            --build-arg BASE_DISTRO="${BASE_DISTRO}" \
             --label "$SOURCE_LABEL" \
             --load --tag "${BASE_IMAGE}" \
             "images/base"
@@ -65,7 +72,7 @@ if [[ -z "$QUICKBUILD" ]]; then
         BASE_CONTEXT_SRC="docker-image://${BASE_IMAGE}"
     fi
 
-    IMAGE_TARGET="${PWD}/.cache/images/base-${TARGET}"
+    IMAGE_TARGET="${PWD}/.cache/images/base-${TARGET}${BASE_CACHE_SUFFIX}"
     if [[ ! -d "${IMAGE_TARGET}" ]]; then
         cache_args "${TARGET_IMAGE/:/_}"
         docker buildx --builder ffbuilder build \
@@ -92,7 +99,7 @@ if [[ -n "$BASE_ONLY" ]]; then
     exit 0
 fi
 
-./download.sh
+DOWNLOAD_ADDINS_STR="$ADDINS_STR" ./download.sh
 ./generate.sh "$TARGET" "$VARIANT" "${ADDINS[@]}"
 
 RECIPE_LABEL="org.framepod.recipe=$(./util/recipe_hash.sh "$TARGET" "$VARIANT" "${ADDINS[@]}")"

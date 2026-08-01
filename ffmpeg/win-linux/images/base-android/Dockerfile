@@ -2,6 +2,11 @@ ARG GH_REPO=ghcr.io/btbn/ffmpeg-builds
 ARG BASE_TAG_SUFFIX=
 FROM $GH_REPO/base:latest${BASE_TAG_SUFFIX}
 
+ARG ANDROID_ABI=arm64-v8a
+ARG ANDROID_TRIPLE=aarch64-linux-android
+ARG FFMPEG_ARCH=aarch64
+ARG MESON_CPU_FAMILY=aarch64
+
 # Google publishes the NDK for linux-x86_64 and darwin only, never linux-aarch64, so this is
 # the one image in the tree that has to be amd64. It cross-compiles either way, so the host
 # architecture has no bearing on what comes out.
@@ -13,15 +18,26 @@ RUN \
     unzip -q /tmp/ndk.zip -d /opt && \
     mv "/opt/android-ndk-${NDK_VERSION}" /opt/ndk && \
     rm /tmp/ndk.zip && \
-    # Only arm64-v8a is built, and the other ABIs' sysroots are most of the unpacked size.
-    rm -rf /opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/{i686,x86_64,arm}-linux-android* && \
+    # Keep only the selected ABI; the other sysroots are most of the unpacked size.
+    find /opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib -mindepth 1 -maxdepth 1 \
+        -type d ! -name "${ANDROID_TRIPLE}*" -exec rm -rf {} + && \
     rm -rf /opt/ndk/simpleperf /opt/ndk/sources/third_party && \
     mkdir /opt/ffbuild
 
-ENV FFBUILD_TOOLCHAIN=aarch64-linux-android
+ENV FFBUILD_TOOLCHAIN=${ANDROID_TRIPLE}
 
-ADD toolchain.cmake /toolchain.cmake
-ADD cross.meson /cross.meson
+ADD toolchain.cmake /toolchain.cmake.in
+ADD cross.meson /cross.meson.in
+RUN sed \
+        -e "s|@ANDROID_ABI@|${ANDROID_ABI}|g" \
+        -e "s|@ANDROID_TRIPLE@|${ANDROID_TRIPLE}|g" \
+        -e "s|@MESON_CPU_FAMILY@|${MESON_CPU_FAMILY}|g" \
+        /cross.meson.in > /cross.meson && \
+    sed \
+        -e "s|@ANDROID_ABI@|${ANDROID_ABI}|g" \
+        -e "s|@ANDROID_TRIPLE@|${ANDROID_TRIPLE}|g" \
+        /toolchain.cmake.in > /toolchain.cmake && \
+    rm /cross.meson.in /toolchain.cmake.in
 
 # The API level is part of the compiler name rather than a flag: the NDK keeps one set of
 # stub libraries per level, and 24 is what Tauri's Android project targets.
@@ -33,13 +49,13 @@ ENV ANDROID_API=24 \
 # shared runtime, which an app shipping nothing but these binaries cannot load. Shadow both names
 # in the prefix the linker reaches first, with the static runtime and its ABI library merged in.
 RUN set -e; \
-    ndklib="$(dirname "$(find /opt/ndk -name libc++_static.a -path '*aarch64-linux-android*' | head -1)")"; \
+    ndklib="$(dirname "$(find /opt/ndk -name libc++_static.a -path "*${ANDROID_TRIPLE}*" | head -1)")"; \
     mkdir -p /opt/ffbuild/lib; \
     printf 'CREATE /opt/ffbuild/lib/libc++.a\nADDLIB %s/libc++_static.a\nADDLIB %s/libc++abi.a\nSAVE\nEND\n' \
         "$ndklib" "$ndklib" | llvm-ar -M; \
     ln -s libc++.a /opt/ffbuild/lib/libstdc++.a
 
-ENV FFBUILD_TARGET_FLAGS="--pkg-config=pkg-config --arch=aarch64 --target-os=android --enable-cross-compile --enable-mediacodec --enable-jni" \
+ENV FFBUILD_TARGET_FLAGS="--pkg-config=pkg-config --arch=${FFMPEG_ARCH} --target-os=android --enable-cross-compile --enable-mediacodec --enable-jni" \
     FFBUILD_CROSS_PREFIX="llvm-" \
     FFBUILD_PREFIX=/opt/ffbuild \
     FFBUILD_DESTDIR=/opt/ffdest \
@@ -47,8 +63,8 @@ ENV FFBUILD_TARGET_FLAGS="--pkg-config=pkg-config --arch=aarch64 --target-os=and
     FFBUILD_CMAKE_TOOLCHAIN=/toolchain.cmake \
     PKG_CONFIG=pkg-config \
     PKG_CONFIG_LIBDIR=/opt/ffbuild/lib/pkgconfig:/opt/ffbuild/share/pkgconfig \
-    CC="aarch64-linux-android24-clang" \
-    CXX="aarch64-linux-android24-clang++" \
+    CC="${ANDROID_TRIPLE}24-clang" \
+    CXX="${ANDROID_TRIPLE}24-clang++" \
     AR="llvm-ar" \
     RANLIB="llvm-ranlib" \
     NM="llvm-nm" \

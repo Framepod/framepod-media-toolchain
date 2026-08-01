@@ -10,7 +10,7 @@ ffbuild_enabled() {
 # winarm64's mingw has no OpenMP at all, and the NDK ships libomp as a shared library rather
 # than libgomp, which a self-contained build cannot pull in.
 soxr_openmp() {
-    [[ $TARGET != winarm64 && $TARGET != android ]]
+    [[ $TARGET != winarm64 && $TARGET != android* ]]
 }
 
 # soxr's own .pc declares no private deps, so whatever it needs on top of -lsoxr has to be
@@ -19,7 +19,7 @@ soxr_privlibs() {
     local libs=()
     soxr_openmp && libs+=( -lgomp )
     # bionic keeps the math functions in a libm of their own, which clang does not link for us.
-    [[ $TARGET == android ]] && libs+=( -lm )
+    [[ $TARGET == android* ]] && libs+=( -lm )
     echo "${libs[@]}"
 }
 

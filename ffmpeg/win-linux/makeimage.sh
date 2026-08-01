@@ -74,15 +74,27 @@ if [[ -z "$QUICKBUILD" ]]; then
 
     IMAGE_TARGET="${PWD}/.cache/images/base-${TARGET}${BASE_CACHE_SUFFIX}"
     if [[ ! -d "${IMAGE_TARGET}" ]]; then
+        TARGET_IMAGE_CONTEXT="images/base-${TARGET}"
+        TARGET_BUILD_ARGS=()
+        if [[ $TARGET == androidx64 ]]; then
+            TARGET_IMAGE_CONTEXT="images/base-android"
+            TARGET_BUILD_ARGS=(
+                --build-arg ANDROID_ABI=x86_64
+                --build-arg ANDROID_TRIPLE=x86_64-linux-android
+                --build-arg FFMPEG_ARCH=x86_64
+                --build-arg MESON_CPU_FAMILY=x86_64
+            )
+        fi
         cache_args "${TARGET_IMAGE/:/_}"
         docker buildx --builder ffbuilder build \
             "${CACHE_ARGS[@]}" \
+            "${TARGET_BUILD_ARGS[@]}" \
             --build-arg GH_REPO="${REGISTRY}/${REPO}" \
             --build-arg BASE_TAG_SUFFIX="${BASE_TAG_SUFFIX}" \
             --build-context "${BASE_IMAGE}=${BASE_CONTEXT_SRC}" \
             --label "$SOURCE_LABEL" \
             --load --tag "${TARGET_IMAGE}" \
-            "images/base-${TARGET}"
+            "${TARGET_IMAGE_CONTEXT}"
         mkdir -p "${IMAGE_TARGET}"
         docker image save "${TARGET_IMAGE}" | tar -x -C "${IMAGE_TARGET}"
         push_image "${TARGET_IMAGE}"
@@ -90,7 +102,7 @@ if [[ -z "$QUICKBUILD" ]]; then
 
     CONTEXT_SRC="oci-layout://${IMAGE_TARGET}"
 else
-    CONTEXT_SRC="docker-image://${TARGET_IMAGE}"
+    CONTEXT_SRC="docker-image://${TARGET_IMAGE_SOURCE_OVERRIDE:-$TARGET_IMAGE}"
 fi
 
 # The toolchain pipeline stops here; the dependency layer belongs to the release pipeline,

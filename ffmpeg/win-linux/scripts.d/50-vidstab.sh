@@ -14,7 +14,7 @@ ffbuild_dockerbuild() {
     local mycmake=(
         -DBUILD_SHARED_LIBS=OFF
         # The NDK's OpenMP is a shared library, which a self-contained build cannot carry.
-        -DUSE_OMP="$([[ $TARGET == android ]] && echo OFF || echo ON)"
+        -DUSE_OMP="$([[ $TARGET == android* ]] && echo OFF || echo ON)"
     )
 
     if [[ $TARGET == *arm64 || $TARGET == android ]]; then

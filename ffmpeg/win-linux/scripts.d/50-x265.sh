@@ -65,7 +65,7 @@ EOF
 
     make install DESTDIR="$FFBUILD_DESTDIR"
 
-    if [[ $TARGET == android ]]; then
+    if [[ $TARGET == android* ]]; then
         # The NDK hands CMake a ready-made -l:libunwind.a, and x265's .pc template puts another
         # -l in front of every entry. Its Libs.private already names the C++ runtime, so a second
         # one would only shadow the first key.

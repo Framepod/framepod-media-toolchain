@@ -7,7 +7,7 @@ Self-contained FFmpeg binaries, consumed by the Tauri app as a sidecar (desktop)
 |---|---|---|
 | `win-linux/` | win64, winarm64, linux64, linuxarm64 | [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) @ `8c736b2`, trimmed |
 | `macos/` | macos-arm64 | native build, recipes adapted from [markus-perl/ffmpeg-build-script](https://github.com/markus-perl/ffmpeg-build-script) |
-| — | android arm64-v8a | built by `win-linux/` as a fifth target, NDK toolchain |
+| — | android arm64-v8a, x86_64 | built by `win-linux/` as two NDK targets |
 
 See [DEVELOPING.md](DEVELOPING.md) for running and debugging the builds locally.
 
@@ -22,7 +22,8 @@ linked statically; the only dynamic dependencies left are the platform's own dri
 ./build.sh     <target> gpl     # build FFmpeg, emit artifacts/
 ```
 
-Targets: `win64` `winarm64` `linux64` `linuxarm64`. Variant is always `gpl`.
+Targets: `win64` `winarm64` `linux64` `linuxarm64` `android` `androidx64`. Variant is always
+`gpl`.
 
 Optional addins pin an FFmpeg release branch instead of master: `./build.sh linux64 gpl 9.0`.
 
@@ -100,9 +101,9 @@ Dry-run the graph without Docker:
 
 ### android
 
-A fifth target of the same pipeline rather than its own tree: the NDK runs under Linux, so
-the Docker scheme applies unchanged and the recipes are shared. Only `arm64-v8a`, at API 24,
-which is what Tauri's Android project targets and also the floor for 64-bit ARM.
+Two targets of the same pipeline rather than their own tree: `android` emits `arm64-v8a` and
+`androidx64` emits `x86_64`. Both use API 24 and the same parameterized NDK r28b toolchain, so
+the dependency recipes and compiler settings cannot drift between ABIs.
 
 The dependency set is the macOS one — no VA-API, AMF, NVENC, oneVPL, Vulkan, OpenCL or X11.
 Hardware acceleration is MediaCodec, and since FFmpeg 8 that reaches the codecs through the
@@ -111,11 +112,11 @@ JavaVM in the process and survives being run as a separate process.
 
 Tauri v2 has no sidecar on mobile. Android grants execute permission only to files under the
 app's `nativeLibraryDir`, which is populated from `jniLibs`, so the CLI ships as
-`jniLibs/arm64-v8a/libffmpeg.so` — still a PIE executable, run with `ProcessBuilder`, despite
-the name.
+`jniLibs/<abi>/libffmpeg.so` — still a PIE executable, run with `ProcessBuilder`, despite the
+name.
 
-This is the one image that must be x86_64: Google publishes the NDK for `linux` and `darwin`,
-never `linux-aarch64`. Its CI job therefore runs on `ubuntu-latest` while the other four use
+These are the images that must be x86_64: Google publishes the NDK for `linux` and `darwin`,
+never `linux-aarch64`. Their CI jobs therefore run on `ubuntu-latest` while the other four use
 arm64 runners, and `base` exists in two architectures, the amd64 one tagged `latest-amd64`.
 
 ## macos
@@ -196,6 +197,10 @@ own builtins already declare, so an empty file stands in for a 60 MB wheel; and 
 `bin2c` is replaced by a short script, being the one toolkit binary the clang path would
 otherwise need for what amounts to a hex dump.
 
+The `nvcc-fatbin` experiment uses NVIDIA's modular CUDA 13.3 redistributables instead. CUDA
+13.3 supports the Ubuntu 26.04/GCC 15 toolchain used by the normal build, so the dependency
+graph no longer needs to be downgraded to Ubuntu 24.04 just to run NVCC.
+
 `45-vmaf.sh` patches three things upstream assumes. `custom_target` gets none of the project's
 include directories. The `.cu` include paths are relative to a build directory inside
 `libvmaf/`, which is why the build happens there rather than at the repository root. And a
@@ -223,13 +228,14 @@ a pin in `images/*/Dockerfile` moves. `makeimage.sh` gained `BASE_ONLY`, `SKIP_B
 
 `release.yml` polls FFmpeg's tags on a daily cron, since Actions cannot trigger on another
 repository's releases, and also takes a tag by hand. It builds the dependency image for the
-minor line if ghcr has none yet, then FFmpeg itself for all five targets, and publishes a
+minor line if ghcr has none yet, then FFmpeg itself for all six targets, and publishes a
 release. Patch releases on a line reuse the image and cost only the FFmpeg build.
 
 `nvcc-fatbin.yml` is a manual, compile-only experiment for `linux64` and `win64`. Its two
-matrix legs build locally on x86 runners with an Ubuntu 24.04 base supported by CUDA 12.8,
-check the NVCC fatbins, CUDA/NVENC codec registrations and actual AV1 software decoding, and
-upload or push nothing. The normal release remains on Ubuntu 26.04 and embedded clang PTX.
+matrix legs use the public x86_64 BtbN Ubuntu 26.04 base images, so they do not rebuild or
+emulate Framepod's ARM64 toolchain images. They check the seven NVCC fatbins, CUDA/NVENC codec
+registrations and actual AV1 software decoding, and upload or push nothing. The normal release
+remains on embedded clang PTX.
 
 The version reaches both steps as one addin, which is what keeps them consistent: `FFVER`
 is derived from `ADDINS_STR` and decides which dependencies go into the image and which

@@ -50,8 +50,10 @@ jobs:
       - name: build dependency image
         working-directory: ffmpeg/win-linux
         env:
-          BASE_DISTRO: ubuntu:24.04
           NOCLEAN: 1
+          QUICKBUILD: 1
+          BASE_IMAGE_SOURCE_OVERRIDE: ghcr.io/btbn/ffmpeg-builds/base:latest
+          TARGET_IMAGE_SOURCE_OVERRIDE: ghcr.io/btbn/ffmpeg-builds/base-${{ matrix.target }}:latest
         run: ./makeimage.sh ${{ matrix.target }} gpl "${{ inputs.line }}" nvcc-fatbin
       - name: build FFmpeg
         working-directory: ffmpeg/win-linux

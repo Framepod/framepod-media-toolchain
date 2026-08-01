@@ -47,7 +47,7 @@ after touching one.
 ```
 
 Catches a broken recipe, an unresolvable stage and a missing addin. This is what CI's
-`preflight` job runs for all five targets.
+`preflight` job runs for all six targets.
 
 ### One dependency — minutes
 
@@ -109,16 +109,16 @@ strings -a ffmpeg.exe | grep -m1 -o -- '--enable-gpl.*'
 grep -c -a -o __local_depot ffmpeg.exe
 ```
 
-## Apple Silicon: the android target
+## Apple Silicon: the Android targets
 
-Android is the one target that must run as `linux/amd64`, because Google ships no
+Android builds are the targets that must run as `linux/amd64`, because Google ships no
 `linux-aarch64` NDK. Under Rosetta, GNU tar's syscalls are mistranslated and every `tar` inside
 that container fails with `Function not implemented` — `run_stage` unpacking a source archive,
 `autopoint` unpacking gettext's m4 files, and so on.
 
 The workaround belongs in a scratch script, never in the repo: CI runs amd64 natively and has
 no such problem, and adding `libarchive-tools` to the shared `base` image would force a rebuild
-of all five toolchain images to fix a defect only this machine has.
+of all six toolchain images to fix a defect only this machine has.
 
 ```
 sed -i '' -e 's|tar xaf /cache.tar.xz|bsdtar xf /cache.tar.xz|' util/run_stage.sh
@@ -139,12 +139,12 @@ architecture equals the runner's, and its `org.framepod.recipe` label equals
 recipe in `scripts.d/` including subdirectories, the variant, the addins and the base image's
 manifest digest.
 
-Practical consequence: editing any recipe rebuilds the dependency image for **all five**
+Practical consequence: editing any recipe rebuilds the dependency image for **all six**
 targets, not only the one that recipe affects.
 
 ## Dispatching CI
 
-`toolchain.yml` (manual) publishes `base` and the five `base-<target>` images. Only worth
+`toolchain.yml` (manual) publishes `base` and the six `base-<target>` images. Only worth
 running when a pin in `images/*/Dockerfile` moves — it takes hours.
 
 `release.yml` (daily cron, or manual with a line like `8.1`) builds dependency images where

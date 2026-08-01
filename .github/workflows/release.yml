@@ -92,7 +92,7 @@ jobs:
           LINE: ${{ needs.check.outputs.line }}
         run: |
           set -euo pipefail
-          for t in win64 winarm64 linux64 linuxarm64 android; do
+          for t in win64 winarm64 linux64 linuxarm64 android androidx64; do
             ./generate.sh "$t" gpl "$LINE" >/dev/null
             echo "$t: $(grep -c '^FROM' Dockerfile) stages"
           done
@@ -113,6 +113,7 @@ jobs:
           - { target: linux64,    runner: ubuntu-24.04-arm }
           - { target: linuxarm64, runner: ubuntu-24.04-arm }
           - { target: android,    runner: ubuntu-latest }
+          - { target: androidx64, runner: ubuntu-latest }
     steps:
       - uses: actions/checkout@v4
       - name: free disk space
@@ -221,6 +222,6 @@ jobs:
           gh release create "$NAME" dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "FFmpeg $NAME" \
-            --notes "Self-contained GPLv3 builds for win64, winarm64, linux64, linuxarm64, android-arm64 and macos-arm64.
+            --notes "Self-contained GPLv3 builds for win64, winarm64, linux64, linuxarm64, android-arm64, android-x86_64 and macos-arm64.
 
           Built from FFmpeg \`$BRANCH\` at [\`$COMMIT\`](https://github.com/FFmpeg/FFmpeg/commit/$COMMIT), which carries the fixes backported since the last point release."

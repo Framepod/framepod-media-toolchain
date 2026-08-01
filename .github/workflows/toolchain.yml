@@ -99,9 +99,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
-      - name: build base-amd64 and base-android
+      - name: build base-amd64 and Android toolchains
         working-directory: ffmpeg/win-linux
         env:
           PUSH: 1
           BASE_ONLY: 1
-        run: ./makeimage.sh android gpl
+        run: |
+          ./makeimage.sh android gpl
+          SKIP_BASE=1 ./makeimage.sh androidx64 gpl

@@ -40,8 +40,7 @@ cache_args() {
     fi
 }
 
-# download.sh runs with a placeholder target and would otherwise resolve base to the wrong
-# architecture for android.
+# Keep an explicit base tag selection consistent between image construction and downloads.
 export BASE_TAG_SUFFIX
 
 # GHCR links a package to its repository through this label. Without it a new package has no
@@ -50,7 +49,7 @@ export BASE_TAG_SUFFIX
 SOURCE_LABEL="org.opencontainers.image.source=https://github.com/${REPO_SLUG}"
 
 if [[ -z "$QUICKBUILD" ]]; then
-    # CI splits the toolchain across jobs: one publishes `base`, the four target jobs take it
+    # CI splits the toolchain across jobs: one publishes `base`, the target jobs take it
     # from the registry with SKIP_BASE instead of each rebuilding it.
     BASE_IMAGE_TARGET="${PWD}/.cache/images/base${BASE_CACHE_SUFFIX}"
     if [[ -z "$SKIP_BASE" && ! -d "${BASE_IMAGE_TARGET}" ]]; then
@@ -74,15 +73,27 @@ if [[ -z "$QUICKBUILD" ]]; then
 
     IMAGE_TARGET="${PWD}/.cache/images/base-${TARGET}${BASE_CACHE_SUFFIX}"
     if [[ ! -d "${IMAGE_TARGET}" ]]; then
+        TARGET_IMAGE_CONTEXT="images/base-${TARGET}"
+        TARGET_BUILD_ARGS=()
+        if [[ $TARGET == androidx64 ]]; then
+            TARGET_IMAGE_CONTEXT="images/base-android"
+            TARGET_BUILD_ARGS=(
+                --build-arg ANDROID_ABI=x86_64
+                --build-arg ANDROID_TRIPLE=x86_64-linux-android
+                --build-arg FFMPEG_ARCH=x86_64
+                --build-arg MESON_CPU_FAMILY=x86_64
+            )
+        fi
         cache_args "${TARGET_IMAGE/:/_}"
         docker buildx --builder ffbuilder build \
             "${CACHE_ARGS[@]}" \
+            "${TARGET_BUILD_ARGS[@]}" \
             --build-arg GH_REPO="${REGISTRY}/${REPO}" \
             --build-arg BASE_TAG_SUFFIX="${BASE_TAG_SUFFIX}" \
             --build-context "${BASE_IMAGE}=${BASE_CONTEXT_SRC}" \
             --label "$SOURCE_LABEL" \
             --load --tag "${TARGET_IMAGE}" \
-            "images/base-${TARGET}"
+            "${TARGET_IMAGE_CONTEXT}"
         mkdir -p "${IMAGE_TARGET}"
         docker image save "${TARGET_IMAGE}" | tar -x -C "${IMAGE_TARGET}"
         push_image "${TARGET_IMAGE}"
@@ -90,7 +101,7 @@ if [[ -z "$QUICKBUILD" ]]; then
 
     CONTEXT_SRC="oci-layout://${IMAGE_TARGET}"
 else
-    CONTEXT_SRC="docker-image://${TARGET_IMAGE}"
+    CONTEXT_SRC="docker-image://${TARGET_IMAGE_SOURCE_OVERRIDE:-$TARGET_IMAGE}"
 fi
 
 # The toolchain pipeline stops here; the dependency layer belongs to the release pipeline,

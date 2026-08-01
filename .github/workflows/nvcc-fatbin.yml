@@ -27,7 +27,7 @@ jobs:
           LINE: ${{ inputs.line }}
         run: |
           set -euo pipefail
-          bash -n *.sh util/*.sh variants/*.sh addins/*.sh scripts.d/*.sh scripts.d/*/*.sh
+          bash -n ./*.sh util/*.sh variants/*.sh addins/*.sh scripts.d/*.sh scripts.d/*/*.sh
           for target in linux64 win64; do
             ./generate.sh "$target" gpl "$LINE" nvcc-fatbin >/dev/null
             grep -q "VMAF_CUDA_CODEGEN=nvcc" Dockerfile
@@ -50,8 +50,8 @@ jobs:
       - name: build dependency image
         working-directory: ffmpeg/win-linux
         env:
-          BASE_DISTRO: ubuntu:24.04
           NOCLEAN: 1
+          QUICKBUILD: 1
         run: ./makeimage.sh ${{ matrix.target }} gpl "${{ inputs.line }}" nvcc-fatbin
       - name: build FFmpeg
         working-directory: ffmpeg/win-linux

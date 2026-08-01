@@ -1,6 +1,6 @@
 [binaries]
-c = 'aarch64-linux-android24-clang'
-cpp = 'aarch64-linux-android24-clang++'
+c = '@ANDROID_TRIPLE@24-clang'
+cpp = '@ANDROID_TRIPLE@24-clang++'
 ar = 'llvm-ar'
 ranlib = 'llvm-ranlib'
 strip = 'llvm-strip'
@@ -12,6 +12,6 @@ needs_exe_wrapper = true
 
 [host_machine]
 system = 'android'
-cpu_family = 'aarch64'
-cpu = 'aarch64'
+cpu_family = '@MESON_CPU_FAMILY@'
+cpu = '@MESON_CPU_FAMILY@'
 endian = 'little'

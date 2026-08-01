@@ -60,5 +60,5 @@ for STAGE in scripts.d/*.sh scripts.d/*/*.sh; do
 	EOF
 done
 
-docker run -i $TTY_ARG --rm "${UIDARGS[@]}" -e "ADDINS_STR=$ADDINS_STR" -v "${DL_SCRIPT_DIR}":/stages -v "${PWD}/.cache/downloads":/dldir -v "${PWD}/scripts.d":/scripts.d -v "${PWD}/util/dl_functions.sh":/dl_functions.sh "${BASE_IMAGE}" \
+docker run -i $TTY_ARG --rm "${UIDARGS[@]}" -e "ADDINS_STR=$ADDINS_STR" -v "${DL_SCRIPT_DIR}":/stages -v "${PWD}/.cache/downloads":/dldir -v "${PWD}/scripts.d":/scripts.d -v "${PWD}/util/dl_functions.sh":/dl_functions.sh "${BASE_IMAGE_SOURCE_OVERRIDE:-$BASE_IMAGE}" \
 	bash -c 'set -xe && for STAGE in /stages/*.sh; do bash $STAGE; done'

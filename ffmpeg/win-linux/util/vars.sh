@@ -38,12 +38,9 @@ done
 REPO_SLUG="${GITHUB_REPOSITORY:-Framepod/framepod-media-toolchain}"
 REPO="${REPO_SLUG,,}"
 REGISTRY="${REGISTRY_OVERRIDE:-ghcr.io}"
-# base is the one image that exists for two host architectures. Everything is arm64, built
-# and run natively; android is the exception because Google ships no linux-aarch64 NDK.
-# download.sh sources this with a placeholder target, so it inherits the choice instead.
-if [[ -z ${BASE_TAG_SUFFIX+x} ]]; then
-    [[ $TARGET == android* ]] && BASE_TAG_SUFFIX="-amd64" || BASE_TAG_SUFFIX=""
-fi
+# Build images are amd64. The compiler inside each target image decides what architecture
+# FFmpeg and dependencies use. A suffix can still select a bootstrap image explicitly.
+BASE_TAG_SUFFIX="${BASE_TAG_SUFFIX:-}"
 BASE_IMAGE="${REGISTRY}/${REPO}/base:latest${BASE_TAG_SUFFIX}"
 TARGET_IMAGE="${REGISTRY}/${REPO}/base-${TARGET}:latest"
 IMAGE="${REGISTRY}/${REPO}/${TARGET}-${VARIANT}${ADDINS_STR:+-}${ADDINS_STR}:latest"

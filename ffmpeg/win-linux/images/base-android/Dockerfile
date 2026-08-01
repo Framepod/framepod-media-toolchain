@@ -7,9 +7,8 @@ ARG ANDROID_TRIPLE=aarch64-linux-android
 ARG FFMPEG_ARCH=aarch64
 ARG MESON_CPU_FAMILY=aarch64
 
-# Google publishes the NDK for linux-x86_64 and darwin only, never linux-aarch64, so this is
-# the one image in the tree that has to be amd64. It cross-compiles either way, so the host
-# architecture has no bearing on what comes out.
+# Google publishes the NDK for linux-x86_64 and darwin only, never linux-aarch64. The shared
+# build host is amd64; these parameters independently select the Android output ABI.
 ARG NDK_VERSION=r28b
 ARG NDK_SHA512=25f4517febcc6a37a762ec158daf42ff4bd6fd6ea643959395eef109f4f29a8f5256ee997f7c40fee66282686f19cd254c17d2f7ccfa80a4f601bff262997f57
 

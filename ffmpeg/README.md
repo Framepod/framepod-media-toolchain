@@ -115,9 +115,9 @@ app's `nativeLibraryDir`, which is populated from `jniLibs`, so the CLI ships as
 `jniLibs/<abi>/libffmpeg.so` — still a PIE executable, run with `ProcessBuilder`, despite the
 name.
 
-These are the images that must be x86_64: Google publishes the NDK for `linux` and `darwin`,
-never `linux-aarch64`. Their CI jobs therefore run on `ubuntu-latest` while the other four use
-arm64 runners, and `base` exists in two architectures, the amd64 one tagged `latest-amd64`.
+Google publishes the NDK for `linux` and `darwin`, never `linux-aarch64`. All `win-linux`
+build images are therefore x86_64 and share one `base:latest`; the compiler inside each target
+image determines whether the resulting binary is x86_64, arm64, Windows, Linux or Android.
 
 ## macos
 
@@ -218,13 +218,14 @@ FFmpeg's own CUDA filters are unrelated to this and need no headers beyond `nv-c
 
 ## CI
 
-The release and toolchain pipelines run on `ubuntu-24.04-arm`, because their images are arm64 —
-the cross-compilers inside them do not care what host they run on. macOS builds on `macos-15`.
+The release and toolchain pipelines run on `ubuntu-latest` and use amd64 build images. Their
+cross-compilers emit the requested target architecture independently of the host. macOS builds
+on `macos-15`.
 
-`toolchain.yml` is manual (`workflow_dispatch`). It builds `base` and the four
+`toolchain.yml` is manual (`workflow_dispatch`). It builds `base` and the six
 `base-<target>` images and pushes them to ghcr, which takes hours and is only warranted when
 a pin in `images/*/Dockerfile` moves. `makeimage.sh` gained `BASE_ONLY`, `SKIP_BASE` and
-`PUSH` for it: one job publishes `base`, the rest pull it instead of rebuilding it four times.
+`PUSH` for it: one job publishes `base`, the remaining jobs pull it instead of rebuilding it.
 
 `release.yml` polls FFmpeg's tags on a daily cron, since Actions cannot trigger on another
 repository's releases, and also takes a tag by hand. It builds the dependency image for the
@@ -232,10 +233,9 @@ minor line if ghcr has none yet, then FFmpeg itself for all six targets, and pub
 release. Patch releases on a line reuse the image and cost only the FFmpeg build.
 
 `nvcc-fatbin.yml` is a manual, compile-only experiment for `linux64` and `win64`. Its two
-matrix legs use the public x86_64 BtbN Ubuntu 26.04 base images, so they do not rebuild or
-emulate Framepod's ARM64 toolchain images. They check the seven NVCC fatbins, CUDA/NVENC codec
-registrations and actual AV1 software decoding, and upload or push nothing. The normal release
-remains on embedded clang PTX.
+matrix legs use Framepod's published amd64 base and target images. They check the seven NVCC
+fatbins, CUDA/NVENC codec registrations and actual AV1 software decoding, and upload or push
+nothing. The normal release remains on embedded clang PTX.
 
 The version reaches both steps as one addin, which is what keeps them consistent: `FFVER`
 is derived from `ADDINS_STR` and decides which dependencies go into the image and which

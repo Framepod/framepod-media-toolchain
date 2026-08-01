@@ -109,11 +109,12 @@ strings -a ffmpeg.exe | grep -m1 -o -- '--enable-gpl.*'
 grep -c -a -o __local_depot ffmpeg.exe
 ```
 
-## Apple Silicon: the Android targets
+## Apple Silicon: amd64 build images
 
-Android builds are the targets that must run as `linux/amd64`, because Google ships no
-`linux-aarch64` NDK. Under Rosetta, GNU tar's syscalls are mistranslated and every `tar` inside
-that container fails with `Function not implemented` — `run_stage` unpacking a source archive,
+All `win-linux` build images run as `linux/amd64`; this keeps CI uniform and supports tools such
+as the Android NDK and NVCC which are unavailable as Linux arm64 hosts. On Apple Silicon Docker
+emulates them. Under Rosetta, GNU tar's syscalls may be mistranslated and every `tar` inside a
+container can fail with `Function not implemented`: `run_stage` unpacking a source archive,
 `autopoint` unpacking gettext's m4 files, and so on.
 
 The workaround belongs in a scratch script, never in the repo: CI runs amd64 natively and has
@@ -122,7 +123,7 @@ of all six toolchain images to fix a defect only this machine has.
 
 ```
 sed -i '' -e 's|tar xaf /cache.tar.xz|bsdtar xf /cache.tar.xz|' util/run_stage.sh
-cat >> images/base-android/Dockerfile <<'EOF'
+cat >> images/base/Dockerfile <<'EOF'
 RUN apt-get update -qq && apt-get install -y -qq libarchive-tools && rm -rf /var/lib/apt/lists/* \
     && mv /bin/tar /bin/tar.gnu && ln -s /usr/bin/bsdtar /bin/tar
 EOF

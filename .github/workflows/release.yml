@@ -85,7 +85,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: shell syntax
         working-directory: ffmpeg/win-linux
-        run: bash -n *.sh util/*.sh variants/*.sh scripts.d/*.sh scripts.d/*/*.sh
+        run: bash -n ./*.sh util/*.sh variants/*.sh scripts.d/*.sh scripts.d/*/*.sh
       - name: resolve dependency graphs
         working-directory: ffmpeg/win-linux
         env:
@@ -101,19 +101,11 @@ jobs:
     needs: [check, preflight]
     if: needs.check.outputs.needed == 'true'
     timeout-minutes: 300
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # arm64 runners, because the images are arm64; the cross-compilers inside them do
-          # not care what host they run on. android is the exception: no linux-aarch64 NDK.
-          - { target: win64,      runner: ubuntu-24.04-arm }
-          - { target: winarm64,   runner: ubuntu-24.04-arm }
-          - { target: linux64,    runner: ubuntu-24.04-arm }
-          - { target: linuxarm64, runner: ubuntu-24.04-arm }
-          - { target: android,    runner: ubuntu-latest }
-          - { target: androidx64, runner: ubuntu-latest }
+        target: [win64, winarm64, linux64, linuxarm64, android, androidx64]
     steps:
       - uses: actions/checkout@v4
       - name: free disk space

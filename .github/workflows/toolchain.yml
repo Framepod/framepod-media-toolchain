@@ -24,15 +24,15 @@ permissions:
   packages: write
 
 env:
-  # The images are arm64 and hold cross-compilers; host arch is independent of what they emit.
+  # Build hosts are amd64; the cross-compilers inside decide the output architecture.
   REGISTRY: ghcr.io
 
 jobs:
-  # Builds `base`, which the four toolchain images share, and gets base-linux64 on the way.
+  # Builds `base`, which all six toolchain images share, and gets base-linux64 on the way.
   base:
     if: ${{ inputs.only == 'all' || inputs.only == 'base' }}
     timeout-minutes: 180
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: free disk space
@@ -58,7 +58,7 @@ jobs:
     if: ${{ !cancelled() && (inputs.only == 'all' || inputs.only == 'toolchain')
         && contains(fromJSON('["success","skipped"]'), needs.base.result) }}
     timeout-minutes: 180
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -82,10 +82,11 @@ jobs:
           SKIP_BASE: 1
         run: ./makeimage.sh ${{ matrix.target }} gpl
 
-  # Separate from the matrix above: Google ships no linux-aarch64 NDK, so this is the one
-  # toolchain that has to be x86_64, and it builds its own base rather than sharing theirs.
+  # Separate only so workflow input can rebuild Android toolchains independently.
   android:
-    if: ${{ inputs.only == 'all' || inputs.only == 'android' }}
+    needs: base
+    if: ${{ !cancelled() && (inputs.only == 'all' || inputs.only == 'android')
+        && contains(fromJSON('["success","skipped"]'), needs.base.result) }}
     timeout-minutes: 120
     runs-on: ubuntu-latest
     steps:
@@ -99,11 +100,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
-      - name: build base-amd64 and Android toolchains
+      - name: build Android toolchains
         working-directory: ffmpeg/win-linux
         env:
           PUSH: 1
           BASE_ONLY: 1
+          SKIP_BASE: 1
         run: |
           ./makeimage.sh android gpl
-          SKIP_BASE=1 ./makeimage.sh androidx64 gpl
+          ./makeimage.sh androidx64 gpl

@@ -40,8 +40,7 @@ cache_args() {
     fi
 }
 
-# download.sh runs with a placeholder target and would otherwise resolve base to the wrong
-# architecture for android.
+# Keep an explicit base tag selection consistent between image construction and downloads.
 export BASE_TAG_SUFFIX
 
 # GHCR links a package to its repository through this label. Without it a new package has no
@@ -50,7 +49,7 @@ export BASE_TAG_SUFFIX
 SOURCE_LABEL="org.opencontainers.image.source=https://github.com/${REPO_SLUG}"
 
 if [[ -z "$QUICKBUILD" ]]; then
-    # CI splits the toolchain across jobs: one publishes `base`, the four target jobs take it
+    # CI splits the toolchain across jobs: one publishes `base`, the target jobs take it
     # from the registry with SKIP_BASE instead of each rebuilding it.
     BASE_IMAGE_TARGET="${PWD}/.cache/images/base${BASE_CACHE_SUFFIX}"
     if [[ -z "$SKIP_BASE" && ! -d "${BASE_IMAGE_TARGET}" ]]; then

@@ -24,8 +24,18 @@ docker buildx inspect ffbuilder &>/dev/null || docker buildx create \
     --driver-opt env.BUILDKIT_STEP_LOG_MAX_SIZE=-1 \
     --driver-opt env.BUILDKIT_STEP_LOG_MAX_SPEED=-1
 
+# GHCR intermittently answers a layer push with "unknown blob". Nothing is wrong with the image
+# and a repeat push of the same layers goes through, so retry rather than throw away the hour
+# that produced them.
 push_image() {
-    [[ -z "$PUSH" ]] || docker push "$1"
+    [[ -z "$PUSH" ]] && return 0
+    local try
+    for try in 1 2 3; do
+        docker push "$1" && return 0
+        echo "push of $1 failed, attempt ${try}/3"
+        sleep $(( try * 15 ))
+    done
+    return 1
 }
 
 # A runner starts with an empty cache directory and throws it away at the end, so mode=max

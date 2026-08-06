@@ -46,7 +46,7 @@ after touching one.
 ./generate.sh linux64 gpl 8.1 && grep '^FROM' Dockerfile
 ```
 
-Catches a broken recipe, an unresolvable stage and a missing addin. This is what CI's
+Catches a broken recipe and an unresolvable stage. This is what CI's
 `preflight` job runs for all six targets.
 
 ### One dependency — minutes

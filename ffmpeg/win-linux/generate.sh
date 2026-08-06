@@ -140,7 +140,7 @@ to_df "COPY --link util/run_stage.sh /usr/bin/run_stage"
 
 for addin in "${ADDINS[@]}"; do
 (
-    source addins/"${addin}.sh"
+    source_addin "$addin"
     type ffbuild_dockeraddin &>/dev/null && ffbuild_dockeraddin || true
 )
 done
@@ -188,7 +188,7 @@ done
 source "variants/${TARGET}-${VARIANT}.sh"
 
 for addin in ${ADDINS[*]}; do
-    source "addins/${addin}.sh"
+    source_addin "$addin"
 done
 
 COMBINELAYER="combine-layer"

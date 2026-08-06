@@ -7,7 +7,7 @@ source util/vars.sh
 source "variants/${TARGET}-${VARIANT}.sh"
 
 for addin in ${ADDINS[*]}; do
-    source "addins/${addin}.sh"
+    source_addin "$addin"
 done
 
 if docker info -f "{{println .SecurityOptions}}" | grep rootless >/dev/null 2>&1; then

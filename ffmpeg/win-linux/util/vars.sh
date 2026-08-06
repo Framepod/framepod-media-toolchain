@@ -19,10 +19,24 @@ fi
 
 LICENSE_FILE="COPYING.LGPLv2.1"
 
+# An FFmpeg release line is its own recipe: the name gives both the branch and FFVER. Only
+# addins that do more than that need a file, so a new line builds without one being added.
+is_release_line() {
+    [[ "$1" =~ ^[0-9]+\.[0-9]+$ ]]
+}
+
+source_addin() {
+    if [[ -f "addins/${1}.sh" ]]; then
+        source "addins/${1}.sh"
+    else
+        GIT_BRANCH="release/${1}"
+    fi
+}
+
 ADDINS=()
 ADDINS_STR=""
 while [[ "$#" -gt 0 ]]; do
-    if ! [[ -f "addins/${1}.sh" ]]; then
+    if ! [[ -f "addins/${1}.sh" ]] && ! is_release_line "$1"; then
         echo "Invalid addin: $1"
         exit -1
     fi
@@ -45,45 +59,14 @@ BASE_IMAGE="${REGISTRY}/${REPO}/base:latest${BASE_TAG_SUFFIX}"
 TARGET_IMAGE="${REGISTRY}/${REPO}/base-${TARGET}:latest"
 IMAGE="${REGISTRY}/${REPO}/${TARGET}-${VARIANT}${ADDINS_STR:+-}${ADDINS_STR}:latest"
 
+# Recipes gate on major*100+minor, computed from the release line rather than a table that
+# every new line has to be added to. No line means master, which is newer than all of them.
 ffbuild_ffver() {
-    case "$ADDINS_STR" in
-    *4.3*)
-        echo 403
-        ;;
-    *4.4*)
-        echo 404
-        ;;
-    *5.0*)
-        echo 500
-        ;;
-    *5.1*)
-        echo 501
-        ;;
-    *6.0*)
-        echo 600
-        ;;
-    *6.1*)
-        echo 601
-        ;;
-    *7.0*)
-        echo 700
-        ;;
-    *7.1*)
-        echo 701
-        ;;
-    *8.0*)
-        echo 800
-        ;;
-    *8.1*)
-        echo 801
-        ;;
-    *9.0*)
-        echo 900
-        ;;
-    *)
+    if [[ "$ADDINS_STR" =~ ([0-9]+)\.([0-9]+) ]]; then
+        echo $(( 10#${BASH_REMATCH[1]} * 100 + 10#${BASH_REMATCH[2]} ))
+    else
         echo 99999999
-        ;;
-    esac
+    fi
 }
 
 

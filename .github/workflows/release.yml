@@ -47,13 +47,15 @@ jobs:
           if [[ -z "$line" ]]; then
             tag=$(git ls-remote --tags --refs "$upstream" \
                   | grep -oE 'n[0-9]+\.[0-9]+(\.[0-9]+)?$' | sort -V | tail -1)
-            line=${tag#n}; line=${line%.*}
+            # A line is major.minor. Point releases add a third component, but a .0 release has
+            # only two, so dropping the last one would turn n9.0 into the line "9".
+            line=$(grep -oE '^[0-9]+\.[0-9]+' <<<"${tag#n}" || true)
           fi
 
-          # The addin decides FFVER, which decides the dependency set baked into the image.
-          # A line without one would silently build against master's, so stop instead.
-          if [[ ! -f "ffmpeg/win-linux/addins/${line}.sh" ]]; then
-            echo "::error::no addin for FFmpeg line ${line}; add ffmpeg/win-linux/addins/${line}.sh" >&2
+          # The line name is the whole recipe: it picks the release branch and FFVER, so a new
+          # line needs nothing added here. Only a name that is not a line has to stop the run.
+          if [[ ! "$line" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::not an FFmpeg release line: '${line}'" >&2
             exit 1
           fi
 

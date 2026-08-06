@@ -240,7 +240,10 @@ nothing. The normal release remains on embedded clang PTX.
 The version reaches both steps as one addin, which is what keeps them consistent: `FFVER`
 is derived from `ADDINS_STR` and decides which dependencies go into the image and which
 `FF_CONFIGURE` flags are baked in, so an image built for one line cannot be used to build
-another. A line with no `addins/<line>.sh` fails the run rather than falling back to master.
+another. A release line needs no file in `addins/` — the name alone gives the branch
+(`release/<line>`) and `FFVER` (`major*100+minor`), so a new upstream line builds on the cron
+that first sees its tag. Files there are for addins that do more, like `lto`, and a line only
+needs one if it ever has to override that default.
 
 ## Licensing
 

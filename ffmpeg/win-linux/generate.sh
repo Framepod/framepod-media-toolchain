@@ -37,10 +37,6 @@ to_df() {
     echo >> "$_of"
 }
 
-###
-### Generate main Dockerfile
-###
-
 exec_dockerstage() {
     SCRIPT="$1"
     (

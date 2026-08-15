@@ -14,12 +14,10 @@ ffbuild_depends() {
 }
 
 ffbuild_dockerbuild() {
-    # Kill build of unused and broken tools
+    # Cross-built tools are unused and fail to build.
     echo > libvmaf/tools/meson.build
 
-    # The bundled libsvm defines ::swap, which ADL now drags into libc++'s
-    # __split_buffer and makes every call there ambiguous. Only bites the
-    # llvm-mingw targets; libstdc++ resolves swap qualified.
+    # libsvm's global swap collides with libc++ ADL on llvm-mingw; libstdc++ qualifies it.
     sed -i -E 's/\bswap\(/libsvm_swap(/g' libvmaf/src/svm.cpp
 
     # 40-cudaheaders.sh only lands this where an NVIDIA GPU is a realistic target, so its
@@ -75,9 +73,6 @@ old = """    else
             '--cuda-gpu-arch=sm_75',
             '--cuda-device-only',
             '-S'
-            # many complaints about device intrinsics when compiling without CTK and the ffmpeg cuda runtime header
-            #            '-nocudainc',
-            #            '-nocudalib',
         ]
     endif"""
 prefix = os.environ["FFBUILD_PREFIX"]
@@ -104,10 +99,8 @@ if source.count(old) != 1:
 path.write_text(source.replace(old, new))
 PY
     elif [[ -d $cuda ]]; then
-        # The .cu targets are custom_targets, so meson passes them neither the project's include
-        # dirs, which upstream expects a toolkit on the default search path to supply, nor
-        # anything from --buildtype. nvcc defaults device code to -O3; clang defaults to -O0 and
-        # leaves the kernels spilling their parameters into local memory.
+        # Meson custom CUDA targets miss project includes and buildtype flags. Supply the toolkit
+        # path and -O3 because clang otherwise emits spilling -O0 kernels.
         sed -i "s|'--cuda-gpu-arch=sm_75',|'--cuda-path=$cuda', '-I', '$FFBUILD_PREFIX/include', '-O3', '--cuda-gpu-arch=sm_75',|" \
             libvmaf/src/meson.build
         grep -q -- "-O3" libvmaf/src/meson.build || return -1

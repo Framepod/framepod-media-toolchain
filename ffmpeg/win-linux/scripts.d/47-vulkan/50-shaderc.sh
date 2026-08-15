@@ -39,7 +39,7 @@ ffbuild_dockerbuild() {
     rm -rf "$DESTDIR"
     unset DESTDIR
 
-    # for some reason, this does not get installed...
+    # Upstream omits libshaderc_util.a from installation.
     cp libshaderc_util/libshaderc_util.a "$FFBUILD_DESTPREFIX"/lib
 
     echo "Libs: -lstdc++" >> "$FFBUILD_DESTPREFIX"/lib/pkgconfig/shaderc_combined.pc

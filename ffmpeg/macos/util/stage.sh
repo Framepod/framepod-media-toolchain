@@ -43,7 +43,6 @@ fetch_source() {
     git -C "$dir" checkout -q FETCH_HEAD
 }
 
-# Defaults, overridden by whichever scripts.d entry is currently sourced.
 ffbuild_enabled()   { return 0; }
 ffbuild_submodules() { return 1; }
 ffbuild_configure() { return 0; }

@@ -4,9 +4,8 @@ package_variant() {
     IN="$1"
     OUT="$2"
 
-    # Tauri v2 has no sidecar on mobile. Android only grants execute permission to files under
-    # the app's nativeLibraryDir, and that directory is populated from jniLibs, so the CLI has
-    # to travel as a library name. It stays a PIE executable and is run with ProcessBuilder.
+    # Tauri has no mobile sidecars, and Android executes only nativeLibraryDir files. Ship the
+    # PIE executable through jniLibs under a library name and run it with ProcessBuilder.
     case "$TARGET" in
     android) abi=arm64-v8a ;;
     androidx64) abi=x86_64 ;;

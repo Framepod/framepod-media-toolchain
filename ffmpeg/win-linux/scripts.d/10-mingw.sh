@@ -35,9 +35,7 @@ ffbuild_dockerbuild() {
     unset CFLAGS CXXFLAGS LDFLAGS CPPFLAGS CCASFLAGS
     unset PKG_CONFIG_LIBDIR
 
-    ###
-    ### mingw-w64-headers
-    ###
+    # mingw-w64 headers
     (
         cd mingw-w64-headers
 
@@ -65,9 +63,7 @@ ffbuild_dockerbuild() {
 
     cp -a /opt/mingw/. /
 
-    ###
-    ### mingw-w64-crt
-    ###
+    # mingw-w64 CRT
     (
         cd mingw-w64-crt
 
@@ -114,9 +110,7 @@ ffbuild_dockerbuild() {
 
     cp -a /opt/mingw/. /
 
-    ###
-    ### mingw-w64-libraries/winpthreads
-    ###
+    # winpthreads
     (
         cd mingw-w64-libraries/winpthreads
 

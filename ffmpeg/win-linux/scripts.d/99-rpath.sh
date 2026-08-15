@@ -30,7 +30,6 @@ ffbuild_ldexeflags() {
     echo '-pie'
 
     if [[ $VARIANT == *shared* ]]; then
-        # Can't escape escape hell
         echo -Wl,-rpath='\\\\\\\$\\\$ORIGIN'
         echo -Wl,-rpath='\\\\\\\$\\\$ORIGIN/../lib'
     fi

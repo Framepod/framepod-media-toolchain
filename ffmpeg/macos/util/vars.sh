@@ -26,7 +26,6 @@ export LDFLAGS="-arch $ARCH -mmacosx-version-min=$MACOSX_DEPLOYMENT_TARGET -isys
 export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig"
 export PATH="$PREFIX/bin:$PATH"
 
-# Apple's cctools libtool, the only thing on macOS that merges static archives
-# (`ar` has no MRI scripts here). Resolved through xcrun so Homebrew's GNU
-# libtool cannot win on PATH — the two share a name but no arguments.
+# macOS `ar` has no MRI support, so resolve Apple's archive-merging libtool through xcrun
+# instead of Homebrew's incompatible GNU binary.
 LIBTOOL_STATIC="$(xcrun -f libtool)"

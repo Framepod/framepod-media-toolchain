@@ -10,12 +10,12 @@ ffbuild_enabled() {
 ffbuild_dockerdl() {
     default_dl .
 
-    # This is where they decided to put downloads for external dependencies, so it needs to run here
+    # autogen fetches external dependencies, so run it while network access is available.
     echo "./autogen.sh"
 }
 
 ffbuild_dockerbuild() {
-    # re-run autoreconf explicitly because tools versions might have changed since it generared the dl cache
+    # Regenerate with this image's autotools; the download cache may use different versions.
     autoreconf -isf
 
     local myconf=(

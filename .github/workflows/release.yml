@@ -40,9 +40,7 @@ jobs:
           set -euo pipefail
           upstream=https://github.com/FFmpeg/FFmpeg.git
 
-          # The newest tag says which line upstream is currently maintaining; the release
-          # branch for that line is what actually gets built, because FFmpeg keeps
-          # backporting fixes to it between point releases.
+          # Build the newest maintained release branch to include point-release backports.
           line="$REQUESTED"
           if [[ -z "$line" ]]; then
             tag=$(git ls-remote --tags --refs "$upstream" \
@@ -75,9 +73,7 @@ jobs:
           for v in line branch commit name needed; do echo "$v=${!v}" >> "$GITHUB_OUTPUT"; done
           echo "$name ($branch @ $commit), build needed: $needed" >> "$GITHUB_STEP_SUMMARY"
 
-  # Everything below costs hours and pushes nothing until it succeeds, so resolve the whole
-  # dependency graph first. This catches a broken recipe, a stage that resolves to nothing and
-  # a missing addin in seconds instead of an hour into a build.
+  # Resolve the graph before the hours-long build to catch broken recipes and missing addins.
   preflight:
     needs: check
     if: needs.check.outputs.needed == 'true'
@@ -133,10 +129,7 @@ jobs:
           image="ghcr.io/${repo}/${{ matrix.target }}-gpl-${LINE}:latest"
           host="$(dpkg --print-architecture)"
 
-          # Patch releases on the same line reuse it; only a new line pays for a build. The tag
-          # says nothing about what is inside, so a leftover from a differently-shaped runner or
-          # from before a recipe change pulls clean and then dies an hour later. Both have cost
-          # us a full run already, so reuse has to match on architecture and on recipes alike.
+          # Reuse line images only when architecture and recipe hash match.
           want="$(./util/recipe_hash.sh ${{ matrix.target }} gpl "$LINE")"
           have_arch=""
           have_recipe=""
@@ -174,9 +167,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: host toolchain
         run: brew install cmake meson ninja nasm pkg-config autoconf automake libtool svn
-      # There is no image to inherit here, so the fifteen dependencies would be rebuilt from
-      # source on three cores every release. The prefix and its done markers are ~190 MB and
-      # only go stale when a pin moves, which the key tracks.
+      # Cache the macOS source-built dependencies; the key changes when a pin moves.
       - uses: actions/cache@v4
         with:
           path: |

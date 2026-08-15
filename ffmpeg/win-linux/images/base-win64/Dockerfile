@@ -17,7 +17,7 @@ RUN --mount=src=ct-ng-config,dst=/.config \
     cd / && \
     rm -rf ct-ng
 
-# Prepare "cross" environment to heavily favour static builds
+# Remove dynamic artifacts so dependency builds choose static libraries.
 RUN \
     find /opt/ct-ng \( \
         -name "*.dll" \

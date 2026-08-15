@@ -19,13 +19,12 @@ ffbuild_enabled() {
 }
 
 ffbuild_dockerbuild() {
-    # This works around an issue of our libxcb-dri3 implib-wrapper not exporting data symbols.
-    # Under normal circumstances, this would break horribly.
-    # But we only want to generate another import lib for libva, so it doesn't matter.
+    # The import-lib wrapper omits xcb_dri3_id; libva needs it only while
+    # generating its own import library.
     echo "#include <xcb/xcbext.h>" >> va/x11/va_dri3.c
     echo "xcb_extension_t xcb_dri3_id;" >> va/x11/va_dri3.c
 
-    # Allow to actually toggle static linking
+    # Let Meson's default-library option choose static or shared output.
     sed -i "s/shared_library/library/g" va/meson.build
 
     mkdir mybuild && cd mybuild

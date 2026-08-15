@@ -8,7 +8,7 @@ ffbuild_enabled() {
 }
 
 ffbuild_dockerbuild() {
-    # Remove broken internal library that depends on things we disable
+    # libanim_util depends on decoders disabled below.
     sed -i '/libanim_util/d' examples/Makefile.am
 
     ./autogen.sh

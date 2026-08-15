@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Fingerprints everything that decides what ends up in a dependency image: the recipes, the
-# generator that arranges them, and the base image they are stacked on. The published tag carries
-# no version of its own, so without this a changed recipe is silently served from an old build.
+# Fingerprints recipes, their generator, and the base image because published tags carry no
+# version and would otherwise reuse stale builds.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source util/vars.sh "$@"

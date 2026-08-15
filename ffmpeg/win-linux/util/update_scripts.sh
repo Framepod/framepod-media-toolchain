@@ -31,14 +31,13 @@ echo "Processing ${scr}"
 
         if [[ -z "${CUR_REPO}" ]]; then
             if [[ -z "$i" ]]; then
-                # Mark scripts without repo source for manual check
                 echo "xxx_CHECKME_xxx" >> "$scr"
                 echo "Needs manual check."
             fi
             break
         fi
 
-        if [[ -n "${CUR_REV}" ]]; then # SVN
+        if [[ -n "${CUR_REV}" ]]; then
             echo "Checking svn rev for ${CUR_REPO}..."
             NEW_REV="$(svn --non-interactive info --username "anonymous" --password="" "${CUR_REPO}" | grep ^Revision: | cut -d" " -f2 | xargs)"
             echo "Got ${NEW_REV} (current: ${CUR_REV})"
@@ -47,7 +46,7 @@ echo "Processing ${scr}"
                 echo "Updating ${scr}"
                 sed -i "s/^${REV_VAR}=.*/${REV_VAR}=\"${NEW_REV}\"/" "${scr}"
             fi
-        elif [[ -n "${CUR_HGREV}" ]]; then # HG
+        elif [[ -n "${CUR_HGREV}" ]]; then
             hg init tmphgrepo
             trap "rm -rf tmphgrepo" EXIT
             cd tmphgrepo
@@ -61,12 +60,11 @@ echo "Processing ${scr}"
                 echo "Updating ${scr}"
                 sed -i "s/^${HGREV_VAR}=.*/${HGREV_VAR}=\"${NEW_HGREV}\"/" "${scr}"
             fi
-        elif [[ -n "${CUR_COMMIT}" ]]; then # GIT
+        elif [[ -n "${CUR_COMMIT}" ]]; then
             if [[ -n "${CUR_TAGFILTER}" ]]; then
                 NEW_COMMIT="$(git -c 'versionsort.suffix=-' ls-remote --exit-code --tags --refs --sort "v:refname" "${CUR_REPO}" "refs/tags/${CUR_TAGFILTER}" | tail -n1 | cut -d/ -f3- | xargs)"
             else
                 if [[ -z "${CUR_BRANCH}" ]]; then
-                    # Fetch default branch name
                     CUR_BRANCH="$(git remote show "${CUR_REPO}" | grep "HEAD branch:" | cut -d":" -f2 | xargs)"
                     echo "Found default branch ${CUR_BRANCH}"
                 fi
@@ -80,7 +78,6 @@ echo "Processing ${scr}"
                 sed -i "s/^${COMMIT_VAR}=.*/${COMMIT_VAR}=\"${NEW_COMMIT}\"/" "${scr}"
             fi
         else
-            # Mark scripts with unknown layout for manual check
             echo "xxx_CHECKME_UNKNOWN_xxx" >> "$scr"
             echo "Unknown layout. Needs manual check."
             break

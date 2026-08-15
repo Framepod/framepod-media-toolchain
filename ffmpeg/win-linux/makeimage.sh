@@ -24,9 +24,8 @@ docker buildx inspect ffbuilder &>/dev/null || docker buildx create \
     --driver-opt env.BUILDKIT_STEP_LOG_MAX_SIZE=-1 \
     --driver-opt env.BUILDKIT_STEP_LOG_MAX_SPEED=-1
 
-# GHCR intermittently answers a layer push with "unknown blob". Nothing is wrong with the image
-# and a repeat push of the same layers goes through, so retry rather than throw away the hour
-# that produced them.
+# GHCR intermittently returns "unknown blob" for valid layers; retry instead of discarding
+# an hour-long build.
 push_image() {
     [[ -z "$PUSH" ]] && return 0
     local try
@@ -53,9 +52,8 @@ cache_args() {
 # Keep an explicit base tag selection consistent between image construction and downloads.
 export BASE_TAG_SUFFIX
 
-# GHCR links a package to its repository through this label. Without it a new package has no
-# source to inherit access from, and GITHUB_TOKEN, which is only ever authorised for its own
-# repository, is refused the write.
+# This label lets a new GHCR package inherit repository access; otherwise its repository-scoped
+# GITHUB_TOKEN cannot write.
 SOURCE_LABEL="org.opencontainers.image.source=https://github.com/${REPO_SLUG}"
 
 if [[ -z "$QUICKBUILD" ]]; then

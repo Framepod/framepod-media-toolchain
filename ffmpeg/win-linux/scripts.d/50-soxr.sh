@@ -26,7 +26,7 @@ soxr_privlibs() {
 ffbuild_dockerbuild() {
     sed -i 's/VERSION 3.1 /VERSION 3.1...3.10 /g' CMakeLists.txt
 
-    # Short-circuit the check to generate a .pc file. We always want it.
+    # Static consumers need the .pc file that upstream emits only after this check.
     sed -i 's/NOT WIN32/1/g' src/CMakeLists.txt
 
     mkdir build && cd build

@@ -44,9 +44,8 @@ ENV ANDROID_API=24 \
     ANDROID_NDK_ROOT=/opt/ndk \
     PATH="/opt/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:${PATH}"
 
-# Every C++ dependency's .pc asks for -lc++ or -lstdc++, and the NDK sysroot answers with the
-# shared runtime, which an app shipping nothing but these binaries cannot load. Shadow both names
-# in the prefix the linker reaches first, with the static runtime and its ABI library merged in.
+# Dependency metadata selects a shared C++ runtime the app cannot load. Shadow both names with
+# the merged static runtime and ABI library in the first linker prefix.
 RUN set -e; \
     ndklib="$(dirname "$(find /opt/ndk -name libc++_static.a -path "*${ANDROID_TRIPLE}*" | head -1)")"; \
     mkdir -p /opt/ffbuild/lib; \

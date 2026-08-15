@@ -2,11 +2,8 @@ ARG GH_REPO=ghcr.io/btbn/ffmpeg-builds
 ARG BASE_TAG_SUFFIX=
 FROM $GH_REPO/base:latest${BASE_TAG_SUFFIX}
 
-# Upstream clones master and runs build-all.sh, which compiles all of LLVM: two hours here,
-# five on a 4-vCPU runner, and the toolchain silently follows LLVM main. mstorsjo publishes a
-# release tarball built from the same tag with the same ucrt and cfguard defaults, so take
-# that. The flags upstream passed (bfd linker, no lldb) only shape the host binaries, not the
-# code the toolchain emits. Pinned by hash because a tag alone does not fix the bytes.
+# Upstream builds LLVM from moving main in 2-5 hours. Use mstorsjo's equivalent tagged
+# ucrt/cfguard release; host-tool flags do not affect emitted code. Hashes pin the bytes.
 ARG LLVM_MINGW_TAG=20260728
 ARG LLVM_MINGW_SHA256_arm64=2e6458feb4cc116a4b9afc81ae72e1e1c8b52d9a367aeaf26c12f582dd9674cd
 ARG LLVM_MINGW_SHA256_amd64=bdc15cb613f2ef309827a90d409806a45eb68e4e607c290fa1b933d74ab87846
@@ -26,11 +23,11 @@ RUN \
     mv "/opt/$name" /opt/llvm-mingw && \
     rm /tmp/llvm-mingw.tar.xz
 
-# LLVM/Clang workarounds
+# Some sources include Windows.h; Linux path lookup is case-sensitive.
 RUN \
     ln -s windows.h /opt/llvm-mingw/generic-w64-mingw32/include/Windows.h
 
-# Prepare "cross" environment to heavily favour static builds
+# Remove dynamic artifacts so dependency builds choose static libraries.
 RUN \
     find /opt/llvm-mingw \( \
         -name "*.dll" \

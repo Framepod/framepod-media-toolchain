@@ -17,7 +17,7 @@ RUN --mount=src=ct-ng-config,dst=/.config \
     cd / && \
     rm -rf ct-ng
 
-# Prepare "cross" environment to heavily favour static builds
+# Prefer static dependencies while keeping system libraries dynamic.
 RUN \
     find /opt/ct-ng \( -type l \
         -and -name '*.so' \

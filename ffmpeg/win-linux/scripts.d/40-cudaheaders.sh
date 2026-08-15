@@ -1,8 +1,7 @@
 #!/bin/bash
 
-# The normal build needs only headers and libdevice for clang PTX. The nvcc-fatbin addin installs
-# NVIDIA's host-native compiler archive as well; it is used only for device code and is never
-# linked into FFmpeg.
+# Normal builds need headers and libdevice; nvcc-fatbin also installs the host compiler for
+# device code, but never links it into FFmpeg.
 
 RT_WHL="nvidia_cuda_runtime_cu12-12.8.90-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl"
 RT_URL="https://files.pythonhosted.org/packages/0d/9b/a997b638fcd068ad6e4d53b8551a7d30fe8b404d6f1804abf1df69838932/${RT_WHL}"
@@ -84,9 +83,8 @@ ffbuild_dockerbuild() {
         cp nvcc/nvidia/cuda_nvcc/nvvm/libdevice/libdevice.10.bc "$cuda"/nvvm/libdevice/
     fi
 
-    # clang force-includes this cuRAND header to redeclare blockDim and threadIdx with its own
-    # builtin types, but it already declares both in __clang_cuda_builtin_vars.h. libvmaf never
-    # calls cuRAND, so an empty file saves pulling a 60 MB wheel for headers nothing reads.
+    # clang already declares these CUDA builtins and libvmaf never calls cuRAND; an empty header
+    # avoids a 60 MB wheel and duplicate declarations.
     : > "$cuda"/include/curand_mtgp32_kernel.h
 }
 
